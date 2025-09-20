@@ -26,11 +26,9 @@ const handleWalletAuth = async (req, res) => {
       
       const formattedAddress = Web3AuthService.formatWalletAddress(walletAddress);
       
-      // Check if user exists
       let user = await User.findOne({ walletAddress: formattedAddress });
       
       if (!user) {
-          // Create new user
           user = await User.create({
               walletAddress: formattedAddress,
               role: role,
