@@ -1,5 +1,6 @@
 const express = require('express');
 const User = require('../models/userModel.js');
+const uploadFile = require('../services/ipfsService.js')
 
 module.exports.getUserProfile = async (req,res) => {
   try{
@@ -17,5 +18,20 @@ module.exports.getUserProfile = async (req,res) => {
   }catch(err){
     console.log("Error in getUserProfile", err);
     return res.status(500).json({message: "Internal Server Error in getUserProfile"});
+  }
+}
+
+module.exports.ipfsUpload = async (req,res) => {
+  
+    if(!req.file) {
+      return res.status(400).json({message: "No file uploaded"});
+    }
+  try{
+    const fileBuffer = req.file.buffer;
+    const ipfsHash = await uploadFile(fileBuffer);
+    return res.status(200).json({ipfsHash: ipfsHash});
+  }catch(err){
+    console.log("Error in ipfsUpload", err);
+    return res.status(500).json({message: "Internal Server Error in ipfsUpload"});
   }
 }
