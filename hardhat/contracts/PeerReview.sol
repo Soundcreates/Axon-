@@ -146,8 +146,18 @@ contract PeerReview is Ownable {
       if(bytes(reviewHashes[manuscriptId][reviewer]).length > 0){ //if the reviewer has reviewed thhen its a good reviewer
         //now we will return the stakeamount to the reviewer
         successfullReviews += 1;
-        axonToken.transfer(address(reviewer), stakeAmount + rewardAmount);
-        reputationScores[reviewer] += 10; //increase reputation score by 10 for successful review
+        int rep = reputationScores[reviewer];
+        rep += 10; //increase reputation score by 10 for successful review
+
+        if(rep > 250) {
+          //if its greater than 250 then we will give them an extra of the amount without the last digit as a rewardBonus
+          uint reputationBonus = uint(rep % 10);
+          uint totalReward = reputationBonus + rewardAmount;
+          axonToken.transfer(address(reviewer), stakeAmount + totalReward);
+        }
+        else{
+          axonToken.transfer(address(reviewer), stakeAmount + rewardAmount);
+        }
         
       }else{
         //if the reviewer has not reviewed then we will not return the stake amounts
