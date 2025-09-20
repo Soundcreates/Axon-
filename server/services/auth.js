@@ -1,7 +1,7 @@
 
 const jwt=require("jsonwebtoken");
 require('dotenv').config();   
-const User=require("../models/User")
+const User=require("../models/userModel.js")
 const secret=process.env.KEY;
 
 const setUser = (user) => {
@@ -11,14 +11,14 @@ const setUser = (user) => {
         walletAddress: user.walletAddress || null, 
         role: user.role,
         loginMethod: user.loginMethod || 'email'
-    }, secret, { expiresIn: "1h" });
+    }, process.env.JWT_SECRET, { expiresIn: "1h" });
 };
 
 
 const getUser=(token)=>{
     if (!token) return null;
     try{
-        return jwt.verify(token,secret);
+        return jwt.verify(token,process.env.JWT_SECRET);
     }
     catch(err){
         return null; 
