@@ -98,12 +98,12 @@ const handleUserLogin=async(req,res)=>{
 
 
 
-const handleUserSignup=async(req,res)=>{ // option of signing in as vendor/ seller
+const handleUserSignup=async(req,res)=>{ 
   try{
   const{name,email,password,role}=req.body;
   if(!name||!email||!password) return res.json({message:"All details required"}).status(400);
 
-  const hashedPassword=await bcrypt.hash(password,10);  // password gets hashed with a salt 10 times and then stored in DB. 
+  const hashedPassword=await bcrypt.hash(password,10);  
 
     await User.create({
       name:name,
