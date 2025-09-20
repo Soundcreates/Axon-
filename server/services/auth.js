@@ -1,8 +1,7 @@
-// service for verifying the jwt->getuser and setting/assigning the jwt during signup/login->setUser
+
 const jwt=require("jsonwebtoken");
 require('dotenv').config();   
 const User=require("../models/User")
-// stateless authentication
 const secret=process.env.KEY;
 
 const setUser = (user) => {
@@ -22,7 +21,7 @@ const getUser=(token)=>{
         return jwt.verify(token,secret);
     }
     catch(err){
-        return null; // Return null if token is invalid or expired
+        return null; 
     }
 }
 

@@ -35,7 +35,7 @@ const handleWalletAuth = async (req, res) => {
               walletAddress: formattedAddress,
               role: role,
               loginMethod: 'wallet',
-              name: `User_${formattedAddress.substring(0, 8)}` // Default name
+              name: `User_${formattedAddress.substring(0, 8)}` 
           });
       }
       
@@ -61,9 +61,7 @@ const handleWalletAuth = async (req, res) => {
 const generateNonce = async (req, res) => {
   try {
       const nonce = Web3AuthService.generateNonce();
-      
-      // Store nonce temporarily (you might want to use Redis for production)
-      // For now, just return it - frontend will send it back
+
       return res.status(200).json({
           nonce: nonce,
           message: `Please sign this message to authenticate: ${nonce}`

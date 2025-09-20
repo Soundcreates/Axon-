@@ -5,7 +5,6 @@ const {getUser}=require("../services/auth")
 const checkForAuthentication = (req, res, next) => {
     let token = req.cookies?.token;
 
-    // Fallback to Authorization header if token not in cookies
     if (!token) {
         const authHeader = req.headers["authorization"];
         if (authHeader && authHeader.startsWith("Bearer ")) {
