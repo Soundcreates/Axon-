@@ -13,6 +13,5 @@ contract AxonToken is ERC20, Ownable {
   constructor(address initialOwner) ERC20("Axon Token", "AXON") Ownable(initialOwner) { //this sets our token name in the first param and the symbol on the second param
     _mint(msg.sender, initialSupply);
   }
-
   
 }
