@@ -1,8 +1,10 @@
 
-const jwt=require("jsonwebtoken");
-require('dotenv').config();   
-const User=require("../models/User")
-const secret=process.env.KEY;
+import jwt from "jsonwebtoken";
+import dotenv from 'dotenv';
+import User from "../models/userModel.js";
+
+dotenv.config();   
+const secret = process.env.JWT_SECRET;
 
 const setUser = (user) => {
     return jwt.sign({
@@ -14,15 +16,14 @@ const setUser = (user) => {
     }, secret, { expiresIn: "1h" });
 };
 
-
-const getUser=(token)=>{
+const getUser = (token) => {
     if (!token) return null;
     try{
-        return jwt.verify(token,secret);
+        return jwt.verify(token, secret);
     }
     catch(err){
         return null; 
     }
 }
 
-module.exports={setUser,getUser};
+export { setUser, getUser };

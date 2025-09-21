@@ -19,7 +19,7 @@ async function main() {
     address : await axonToken.getAddress(),
     abi : JSON.parse(axonToken.interface.formatJson()),
   }
-  writeFileSync("../client/src/contractData/axonToken.json", JSON.stringify(axonTokenData, null, 2), (err) => {
+  writeFileSync("../client2/src/contractData/axonToken.json", JSON.stringify(axonTokenData, null, 2), (err) => {
     if (err) {
       console.error(err);
       return;
@@ -43,7 +43,7 @@ async function main() {
     abi: JSON.parse(peerReview.interface.formatJson()),
   }
 
-  writeFileSync("../client/src/contractData/peerReview.json", JSON.stringify(peerReviewData, null, 2), (err) => {
+  writeFileSync("../client2/src/contractData/peerReview.json", JSON.stringify(peerReviewData, null, 2), (err) => {
     if (err) {
       console.error(err);
       return;

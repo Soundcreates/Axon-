@@ -1,6 +1,5 @@
-const User=require("../models/User")
-const {getUser}=require("../services/auth")
-
+import User from "../models/userModel.js";
+import { getUser } from "../services/auth.js";
 
 const checkForAuthentication = (req, res, next) => {
     let token = req.cookies?.token;
@@ -33,4 +32,4 @@ const restrictTo=(roles=[])=>{
     }
 }
 
-module.exports={checkForAuthentication,restrictTo};
+export { checkForAuthentication, restrictTo };

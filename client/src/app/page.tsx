@@ -661,13 +661,14 @@
 // }
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { easeOutExpo, fadeUp, hoverLift, stagger } from "@/lib/motion";
 import WaveBackdrop from "@/components/WaveBackdrop";
 import Logo from "@/components/logo";
 import ThemeToggle from "@/components/ThemeToggle";
+
 
 import {
   Badge, Button, Card, CardContent, CardDescription, CardFooter, CardHeader,
@@ -704,9 +705,9 @@ function short(addr: string) {
 }
 
 async function connectWallet(): Promise<string | null> {
-  const eth = (globalThis as any).ethereum;
-  if (!eth) return null;
-  const accounts = await eth.request({ method: "eth_requestAccounts" });
+  if (!(window as any).ethereum) return null;
+
+  const accounts = await (window as any).request({ method: "eth_requestAccounts" });
   return accounts?.[0] ?? null;
 }
 async function uploadToIPFS(file: File, onProgress: (p: number) => void): Promise<string> {
@@ -748,6 +749,43 @@ export default function AxonPage() {
   const [draftTitle, setDraftTitle] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const reputation = 72;
+
+  // Check for existing wallet connection on page load
+  useEffect(() => {
+    const checkWalletConnection = async () => {
+      if (!(window as any).ethereum) return;
+
+      try {
+        const accounts = await (window as any).ethereum.request({
+          method: 'eth_accounts'
+        });
+        if (accounts.length > 0) {
+          setAccount(accounts[0]);
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      }
+    };
+
+    checkWalletConnection();
+
+    // Listen for account changes
+    if ((window as any).ethereum) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setAccount(accounts[0]);
+        } else {
+          setAccount(null);
+        }
+      };
+
+      (window as any).ethereum.on('accountsChanged', handleAccountsChanged);
+
+      return () => {
+        (window as any).ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
+  }, []);
 
   const doConnect = async () => {
     const a = await connectWallet();
