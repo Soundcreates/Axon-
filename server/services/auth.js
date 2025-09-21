@@ -8,7 +8,7 @@ const secret = process.env.JWT_SECRET;
 
 const setUser = (user) => {
     return jwt.sign({
-        _id: user._id,
+        id: user._id,
         email: user.email || null,          
         walletAddress: user.walletAddress || null, 
         role: user.role,

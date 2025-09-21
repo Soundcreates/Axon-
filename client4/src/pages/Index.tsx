@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { HeroSection, FeaturesSection } from "@/components/home/HeroSection";
 import { DashboardStats, ReputationCard, TokenBalance } from "@/components/dashboard/DashboardCards";
@@ -7,19 +7,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Users, 
-  FileText, 
-  Clock, 
+import {
+  BarChart3,
+  TrendingUp,
+  Users,
+  FileText,
+  Clock,
   Award,
   Plus,
   Bell,
   User
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { useWallet } from "@/context/WalletContext";
 
 const Index = () => {
+  const { connectWallet, account } = useWallet();
+  const [walletConnected, setWalletConnected] = useState<boolean>(false);
+
+  const HandleConnectWallet = async () => {
+    await connectWallet();
+    setWalletConnected(true);
+
+  }
   return (
     <div className="relative min-h-screen bg-background aurora">
       {/* Navigation */}
@@ -35,7 +46,7 @@ const Index = () => {
                 DeSci Platform
               </Badge>
             </div>
-            
+
             <div className="hidden md:flex items-center gap-6">
               <a href="#dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
                 Dashboard
@@ -50,7 +61,7 @@ const Index = () => {
                 Reputation
               </a>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="sm" className="rounded-2xl">
                 <Bell className="h-4 w-4" />
@@ -60,8 +71,8 @@ const Index = () => {
                   <User className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button variant="neural" size="sm" className="rounded-2xl shadow-glow">
-                Connect Wallet
+              <Button variant="neural" size="sm" className="rounded-2xl shadow-glow" onClick={HandleConnectWallet}>
+                {walletConnected ? account : "Connect Wallet"}
               </Button>
             </div>
           </div>
@@ -70,10 +81,10 @@ const Index = () => {
 
       {/* Hero Section */}
       <HeroSection />
-      
+
       {/* Features */}
       <FeaturesSection />
-      
+
       {/* Dashboard Preview */}
       <section id="dashboard" className="py-24 bg-muted/10">
         <div className="container mx-auto px-4">
@@ -85,7 +96,7 @@ const Index = () => {
               Monitor your research impact, manage reviews, and track token rewards all in one comprehensive dashboard.
             </p>
           </div>
-          
+
           <div className="rounded-3xl p-1 bg-card/40 border border-border backdrop-blur-xl shadow-glow mb-8">
             <Tabs defaultValue="overview" className="space-y-8 p-6">
               <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 bg-muted/30 border border-border rounded-2xl">
@@ -93,23 +104,23 @@ const Index = () => {
                 <TabsTrigger value="reviews" className="rounded-2xl">Reviews</TabsTrigger>
                 <TabsTrigger value="reputation" className="rounded-2xl">Reputation</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="overview" className="space-y-8">
                 <DashboardStats />
-                
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-2">
                     <ReviewQueue />
                   </div>
-                  
+
                   <div className="space-y-6">
-                    <TokenBalance 
+                    <TokenBalance
                       available={1250}
                       staked={500}
                       earned={180}
                       symbol="AXON"
                     />
-                    
+
                     <Card className="bg-card/80 backdrop-blur-xl border-border shadow-card rounded-3xl">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -135,20 +146,20 @@ const Index = () => {
                   </div>
                 </div>
               </TabsContent>
-              
+
               <TabsContent value="reviews">
                 <ReviewQueue />
               </TabsContent>
-              
+
               <TabsContent value="reputation">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <ReputationCard 
+                  <ReputationCard
                     score={847}
                     rank="Expert"
                     reviews={23}
                     expertise={["Machine Learning", "Blockchain", "Cryptography"]}
                   />
-                  
+
                   <Card className="bg-card/80 backdrop-blur-xl border-border shadow-card rounded-3xl">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
