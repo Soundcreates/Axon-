@@ -1,58 +1,23 @@
-import { create } from 'ipfs-http-client';
+import PinataSDK from "@pinata/sdk";
 
-const projectId = process.env.INFURA_IPFS_PROJECT_ID;
-const projectSecret = process.env.INFURA_IPFS_PROJECT_SECRET;
-const auth = "Basic " + Buffer.from(projectId + ":" + projectSecret).toString("base64");
+const pinata = PinataSDK({
+  pinataJwt : process.env.PINATA_JWT,
+  pinataGateway: process.env.PINATA_GATEWAY ,
+})
 
-const ipfs = create({
-  host: "ipfs.infura.io",
-  port: 5001,
-  protocol: "https",
-  headers: {
-    authorization: auth,
-  },
-});
-
-export const uploadFile = async (fileBuffer) => {
+const uploadFile = async (file) => {
   try{
-    const result = await ipfs.add(fileBuffer);
-    console.log("IPFS file uploaded: ", result.path);
-    return result.path; //this is the hash
-  }catch(err){
-    console.log("Error uploading file to IPFS: ", err);
-    throw err;
+    const fileBuffer = Buffer.from(file.data, 'base64');
+    const fileName = file.name;
+
+    const upload = await pinata.upload.file(fileBuffer, {
+      metadata: {name: fileName},
+    })
+
+    process.env.PROJECT_MODE === "development" && console.log("File uploaded to IPFS using pinata:", upload);
+    return upload;
+  } catch (error) {
+    console.error("Error uploading file to IPFS:", error);
+    throw error;
   }
 }
-
-export const uploadBuffer = async (buffer, filename) => {
-  try {
-    const result = await ipfs.add({
-      path: filename,
-      content: buffer
-    });
-    console.log("IPFS buffer uploaded: ", result.path);
-    return result.path;
-  } catch (err) {
-    console.log("Error uploading buffer to IPFS: ", err);
-    throw err;
-  }
-}
-
-export const uploadJSON = async (jsonObject) => {
-  try {
-    const result = await ipfs.add(JSON.stringify(jsonObject));
-    console.log("IPFS JSON uploaded: ", result.path);
-    return result.path;
-  } catch (err) {
-    console.log("Error uploading JSON to IPFS: ", err);
-    throw err;
-  }
-}
-
-const ipfsService = {
-  uploadFile,
-  uploadBuffer,
-  uploadJSON
-};
-
-export default ipfsService;
