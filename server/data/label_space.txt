@@ -1,0 +1,59 @@
+AI
+machine learning
+deep learning
+NLP
+computer vision
+reinforcement learning
+graph learning
+bioinformatics
+genomics
+proteomics
+drug discovery
+chemistry
+computational chemistry
+biology
+neuroscience
+medicine
+clinical trials
+epidemiology
+statistics
+causal inference
+time series
+optimization
+cryptography
+blockchain
+smart contracts
+DeSci
+tokenomics
+economics
+finance
+environmental science
+climate
+geoscience
+materials science
+physics
+quantum
+mathematics
+theory
+signal processing
+controls
+robotics
+software engineering
+distributed systems
+databases
+information retrieval
+IR
+knowledge graphs
+HCI
+ethics
+privacy
+security
+IoT
+edge computing
+networks
+computer systems
+operating systems
+data visualization
+reproducibility
+open science
+metascience
