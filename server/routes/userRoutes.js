@@ -1,7 +1,7 @@
 import express from 'express';
 import { checkForAuthentication } from '../middlewares/authMiddleware.js';
 import multer from 'multer';
-import { getUserProfile, ipfsUpload } from '../controllers/userController.js';
+import { getUserProfile, ipfsUpload, listReviewers } from '../controllers/userController.js';
 
 const userRouter = express.Router();
 
@@ -14,4 +14,8 @@ userRouter.get('/profile', checkForAuthentication, getUserProfile);
 
 userRouter.post("/upload",upload.single('file'),  checkForAuthentication, ipfsUpload);
 
+//reviewers
+userRouter.get("/listReviewers", checkForAuthentication, listReviewers)
+
 export default userRouter;
+

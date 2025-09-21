@@ -34,3 +34,10 @@ export const ipfsUpload = async (req,res) => {
     return res.status(500).json({message: "Internal Server Error in ipfsUpload"});
   }
 }
+
+export const listReviewers = async (req,res) => {
+  const reviewers = User.find({role: "reviewer"});
+  if(!reviewers) return res.status(400).json({message: "No reviewers available"});
+  return res.status(200).json({reviewers: reviewers})
+
+}

@@ -12,7 +12,7 @@ app.use(express.urlencoded({extended:false}));
 app.use(express.json()); 
 
 app.use (cors({
-    origin:[process.env.PROJECT_MODE==="development" ? "http://localhost:5173":process.env.PROD_URI],
+    origin:[process.env.PROJECT_MODE==="development" ? "http://localhost:8080":process.env.PROD_URI],
     // methods:["GET","POST","DELETE","PUT","PATCH"],
     credentials:true
 }));

@@ -3,13 +3,13 @@ import mongoose from 'mongoose';
 const manuscriptSchema = new mongoose.Schema({
     title: {
         type: String,
-        required: true,
+     
         trim: true,
         maxlength: 200
     },
     abstract: {
         type: String,
-        required: true,
+       
         maxlength: 1000
     },
     keywords: [{
@@ -18,13 +18,13 @@ const manuscriptSchema = new mongoose.Schema({
     }],
     category: {
         type: String,
-        required: true,
+
         enum: ['Computer Science', 'Biology', 'Physics', 'Chemistry', 'Mathematics', 'Medicine', 'Engineering', 'Other']
     },
     author: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+
     },
     coAuthors: [{
         name: String,
@@ -74,7 +74,7 @@ const manuscriptSchema = new mongoose.Schema({
         mimeType: String
     },
     blockchain: {
-        manuscriptId: String, // blockchain manuscript ID
+        manuscriptId: String, // blockchain manuscript ID (cid that we get from ipfs)
         transactionHash: String,
         blockNumber: Number
     }

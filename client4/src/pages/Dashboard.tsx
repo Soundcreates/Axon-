@@ -3,23 +3,37 @@ import { ReviewQueue } from "@/components/dashboard/ReviewQueue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  FileText, 
-  Plus, 
-  TrendingUp, 
-  Users, 
+import {
+  FileText,
+  Plus,
+  TrendingUp,
+  Users,
   Clock,
   Star,
   Settings,
   LogOut
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+
+type User = {
+  walletAddress: string;
+  username: string;
+  name: string;
+  email: string;
+  bio?: string;
+  roles: string;
+  rep?: number;
+
+}
 
 const Dashboard = () => {
+  const { user } = useAuth();
   // Mock user data - will be fetched from Supabase
   const userData = {
-    name: "Dr. Sarah Chen",
-    reputation: 4.8,
+    name: user?.name,
+
+    rep: 20,
     totalTokens: 890,
     pendingReviews: 3,
     recentActivity: [
@@ -45,7 +59,7 @@ const Dashboard = () => {
                 <Link to="/timeline" className="text-muted-foreground hover:text-primary">Timeline</Link>
               </nav>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <Link to="/profile">
                 <Button variant="ghost" size="sm">
@@ -57,13 +71,13 @@ const Dashboard = () => {
                   </div>
                 </Button>
               </Link>
-              
+
               <Link to="/profile">
                 <Button variant="ghost" size="sm">
                   <Settings className="h-4 w-4" />
                 </Button>
               </Link>
-              
+
               <Link to="/login">
                 <Button variant="ghost" size="sm">
                   <LogOut className="h-4 w-4" />
@@ -104,13 +118,13 @@ const Dashboard = () => {
 
         {/* Token and Reputation Cards */}
         <div className="grid lg:grid-cols-2 gap-6 mt-6">
-          <TokenBalance 
+          <TokenBalance
             staked={150}
             available={740}
             earned={320}
             symbol="AXON"
           />
-          <ReputationCard 
+          <ReputationCard
             score={850}
             rank="Expert"
             reviews={47}
@@ -142,7 +156,7 @@ const Dashboard = () => {
                     <span className="text-muted-foreground text-sm">/5.0</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-green-500" />
@@ -150,7 +164,7 @@ const Dashboard = () => {
                   </div>
                   <span className="font-bold text-green-600">+12%</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-blue-500" />
@@ -185,7 +199,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 <Link to="/timeline">
                   <Button variant="outline" size="sm" className="w-full">
                     <Clock className="h-4 w-4 mr-2" />

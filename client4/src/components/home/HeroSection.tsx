@@ -4,28 +4,30 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { ArrowRight, Zap, Shield, Award, Network, FileCheck, Coins } from "lucide-react";
 import heroImage from "@/assets/hero-bg.jpg";
+import { useNavigate } from "react-router-dom";
 
 export const HeroSection = () => {
+  const navigate = useNavigate();
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background with gradient overlay */}
       <div className="absolute inset-0">
-        <img 
-          src={heroImage} 
-          alt="Futuristic scientific research with blockchain networks" 
+        <img
+          src={heroImage}
+          alt="Futuristic scientific research with blockchain networks"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-hero opacity-90" />
         <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
       </div>
-      
+
       {/* Content */}
       <div className="relative z-10 container mx-auto px-4 py-20 text-center text-white">
         <Badge className="bg-white/20 text-white border-white/30 mb-6">
           <Zap className="h-3 w-3 mr-1" />
           Decentralized Science Revolution
         </Badge>
-        
+
         <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
           <span className="bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
             Axon
@@ -35,12 +37,12 @@ export const HeroSection = () => {
             Transparent Peer Review
           </span>
         </h1>
-        
+
         <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
-          Revolutionary blockchain platform transforming academic peer review through 
+          Revolutionary blockchain platform transforming academic peer review through
           tokenized incentives, transparent workflows, and on-chain reputation systems.
         </p>
-        
+
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <Link to="/login">
             <Button variant="hero" size="lg" className="text-lg px-8 py-4">
@@ -48,13 +50,13 @@ export const HeroSection = () => {
               <ArrowRight className="h-5 w-5 ml-2" />
             </Button>
           </Link>
-          <Link to="/dashboard">
-            <Button variant="outline-neural" size="lg" className="text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-axon-neural">
-              Enter Dashboard
+          <Link to="/register">
+            <Button variant="outline-neural" size="lg" className="text-lg px-8 py-4 border-white text-white hover:bg-white hover:text-axon-neural" >
+              Get Started
             </Button>
           </Link>
         </div>
-        
+
         {/* Key metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
           <div className="text-center">
@@ -71,7 +73,7 @@ export const HeroSection = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Floating elements animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-white/30 rounded-full animate-pulse" />
@@ -133,14 +135,14 @@ export const FeaturesSection = () => {
             The Future of Scientific Review
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Axon leverages blockchain technology to solve the fundamental problems in academic peer review, 
+            Axon leverages blockchain technology to solve the fundamental problems in academic peer review,
             creating a transparent, efficient, and incentivized ecosystem for scientific validation.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <div 
+            <div
               key={index}
               className="group bg-gradient-card rounded-xl shadow-card hover:shadow-neural transition-all duration-300 transform hover:scale-105 border border-border/50"
             >
