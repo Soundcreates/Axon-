@@ -7,11 +7,16 @@ dotenv.config();
 const secret = process.env.JWT_SECRET;
 
 const setUser = (user) => {
+    if (!user || !user._id) {
+        throw new Error("Invalid user object provided to setUser");
+    }
+    
     return jwt.sign({
         id: user._id,
         email: user.email || null,          
         walletAddress: user.walletAddress || null, 
-        role: user.role,
+        role: user.role || null,
+        name: user.name || null,
         loginMethod: user.loginMethod || 'email'
     }, secret, { expiresIn: "1h" });
 };

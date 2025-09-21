@@ -108,9 +108,13 @@ const Register = () => {
         walletAddress: account
       };
 
+      console.log("Sending registration data:", registrationData);
+
       const response = await server.post('/auth/register', registrationData);
 
-      if (response.status === 200) {
+      console.log("Registration response:", response);
+
+      if (response.status === 200 && response.data.success) {
         toast.success("Registration successful! Redirecting to dashboard...");
 
         // Store the token and user data
@@ -123,9 +127,10 @@ const Register = () => {
       } else {
         toast.error(response.data.message || "Registration failed. Please try again.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
-      toast.error("Network error. Please check your connection and try again.");
+      const errorMessage = error.response?.data?.message || "Network error. Please check your connection and try again.";
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

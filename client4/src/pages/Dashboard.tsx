@@ -67,7 +67,7 @@ const Dashboard = () => {
                     <div className="w-8 h-8 bg-gradient-neural rounded-full flex items-center justify-center text-white text-sm font-medium">
                       SC
                     </div>
-                    <span className="hidden sm:block">{userData.name}</span>
+                    <span className="hidden sm:block">{user?.username}</span>
                   </div>
                 </Button>
               </Link>
@@ -94,7 +94,7 @@ const Dashboard = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold">Welcome back, Dr. Chen</h1>
+              <h1 className="text-3xl font-bold">Welcome back, {user?.name} </h1>
               <p className="text-muted-foreground">Manage your research submissions and peer reviews</p>
             </div>
             <div className="flex gap-2">
@@ -152,7 +152,7 @@ const Dashboard = () => {
                     <span className="text-sm">Reputation</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold">{userData.reputation}</span>
+                    <span className="font-bold">10</span>
                     <span className="text-muted-foreground text-sm">/5.0</span>
                   </div>
                 </div>
