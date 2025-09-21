@@ -20,6 +20,7 @@
     "ipfs-http-client": "^57.0.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.1",
-    "multer": "^2.0.2"
+    "multer": "^2.0.2",
+    "pinata": "^2.5.0"
   }
 }
