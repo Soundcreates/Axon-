@@ -1,10 +1,10 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const UserSchema = new mongoose.Schema({
     // The wallet address is the primary, unique identifier
     walletAddress: {
         type: String,
-        required: true,
+        
         unique: true,
         lowercase: true, // Store addresses uniformly
         index: true      // Index for faster queries
@@ -37,4 +37,4 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const User = mongoose.model("User", UserSchema);
-module.exports = User;
+export default User;

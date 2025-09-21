@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const reviewSchema = new mongoose.Schema({
     manuscript: {
@@ -95,4 +95,4 @@ const reviewSchema = new mongoose.Schema({
 // Compound index to ensure one review per reviewer per manuscript
 reviewSchema.index({ manuscript: 1, reviewer: 1 }, { unique: true });
 
-module.exports = mongoose.model('Review', reviewSchema);
+export default mongoose.model('Review', reviewSchema);

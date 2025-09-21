@@ -1,6 +1,6 @@
-const User = require("../models/userModel");
-const bcrypt = require("bcryptjs");
-const { setUser } = require("../services/auth");
+import User from "../models/userModel.js";
+import bcrypt from "bcryptjs";
+import { setUser } from "../services/auth.js";
 
 const registerUser = async (req, res) => {
     try {
@@ -24,7 +24,7 @@ const registerUser = async (req, res) => {
         // Check for existing user
         let existingUser;
         if (email) {
-            existingUser = await User.findOne({ email});
+            existingUser = await User.findOne({ email });
             if (existingUser) {
                 return res.status(409).json({
                     success: false,
@@ -33,16 +33,24 @@ const registerUser = async (req, res) => {
             }
         }
 
+        if (walletAddress) {
+            existingUser = await User.findOne({ walletAddress });
+            if (existingUser) {
+                return res.status(409).json({
+                    success: false,
+                    message: "User with this wallet address already exists"
+                });
+            }
+        }
 
         // Create user object
         const userData = {
             name,
-            role,
-            loginMethod: email ? 'email' : 'wallet'
+            roles: [role] // Note: using 'roles' array as per your model
         };
 
-        if (email) {
-            userData.email = email.toLowerCase();
+        if (email && password && !walletAddress) {
+            userData.email = email;
             if (!password) {
                 return res.status(400).json({
                     success: false,
@@ -50,10 +58,12 @@ const registerUser = async (req, res) => {
                 });
             }
             userData.password = await bcrypt.hash(password, 12);
+            userData.loginMethod = 'email';
         }
 
-        if (walletAddress) {
-            userData.walletAddress = walletAddress.toLowerCase();
+        if (walletAddress && !password) {
+            userData.walletAddress = walletAddress;
+            userData.loginMethod = 'wallet';
         }
 
         // Create user
@@ -96,21 +106,32 @@ const registerUser = async (req, res) => {
     }
 };
 
+
 const loginUser = async (req, res) => {
     try {
-        const { email, password} = req.body;
+        const { email, password, walletAddress} = req.body;
 
-        if (!email || !password) {
+        // Validate input - either email+password OR walletAddress
+        if (!email && !walletAddress) {
             return res.status(400).json({
                 success: false,
-                message: "Email and password are required"
+                message: "Either email or wallet address is required"
+            });
+        }
+
+        if (email && !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Password is required for email login"
             });
         }
 
         // Find user
         let user;
+        
         if (email) {
-            user = await User.findOne({ email: email.toLowerCase() });
+            // Email-based login
+            user = await User.findOne({ email});
             if (!user) {
                 return res.status(401).json({
                     success: false,
@@ -118,14 +139,15 @@ const loginUser = async (req, res) => {
                 });
             }
 
-            // Check password
-            if (!password) {
-                return res.status(400).json({
+            // Check if user has a password (some users might be wallet-only)
+            if (!user.password) {
+                return res.status(401).json({
                     success: false,
-                    message: "Password is required"
+                    message: "This account was created with wallet login. Please use wallet to login."
                 });
             }
 
+            // Verify password
             const isValidPassword = await bcrypt.compare(password, user.password);
             if (!isValidPassword) {
                 return res.status(401).json({
@@ -133,8 +155,9 @@ const loginUser = async (req, res) => {
                     message: "Invalid email or password"
                 });
             }
-        } else {
-            user = await User.findOne({ walletAddress: walletAddress.toLowerCase() });
+        } else if (walletAddress) {
+            // Wallet-based login
+            user = await User.findOne({ walletAddress: walletAddress });
             if (!user) {
                 return res.status(401).json({
                     success: false,
@@ -168,7 +191,7 @@ const loginUser = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     registerUser,
     loginUser
 };

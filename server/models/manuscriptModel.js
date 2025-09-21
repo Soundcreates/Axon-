@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const manuscriptSchema = new mongoose.Schema({
     title: {
@@ -88,4 +88,4 @@ manuscriptSchema.index({ 'reviewers.reviewer': 1 });
 manuscriptSchema.index({ category: 1, status: 1 });
 manuscriptSchema.index({ submittedAt: -1 });
 
-module.exports = mongoose.model('Manuscript', manuscriptSchema);
+export default mongoose.model('Manuscript', manuscriptSchema);

@@ -1,7 +1,6 @@
-const Manuscript = require('../models/manuscriptModel');
-const User = require('../models/userModel');
-const ipfsService = require('../services/ipfsService');
-const blockchainService = require('../services/blockchainService');
+import Manuscript from '../models/manuscriptModel.js';
+import User from '../models/userModel.js';
+import ipfsService from '../services/ipfsService.js';
 
 const submitManuscript = async (req, res) => {
     try {
@@ -241,7 +240,7 @@ const getManuscriptDetails = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     submitManuscript,
     getManuscripts,
     assignReviewers,

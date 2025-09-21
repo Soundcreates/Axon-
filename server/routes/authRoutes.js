@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import { registerUser, loginUser } from '../controllers/authController.js';
+
 const router = express.Router();
-const { registerUser, loginUser } = require('../controllers/authController');
 
 // Debug: Check if functions are properly imported
 console.log('registerUser:', typeof registerUser);
@@ -10,4 +11,4 @@ console.log('loginUser:', typeof loginUser);
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 
-module.exports = router;
+export default router;

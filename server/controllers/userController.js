@@ -1,8 +1,7 @@
-const express = require('express');
-const User = require('../models/userModel.js');
-const uploadFile = require('../services/ipfsService.js')
+import User from '../models/userModel.js';
+import uploadFile from '../services/ipfsService.js';
 
-module.exports.getUserProfile = async (req,res) => {
+export const getUserProfile = async (req,res) => {
   try{
     const userId = req.user.id;
     if(!userId){
@@ -21,7 +20,7 @@ module.exports.getUserProfile = async (req,res) => {
   }
 }
 
-module.exports.ipfsUpload = async (req,res) => {
+export const ipfsUpload = async (req,res) => {
   
     if(!req.file) {
       return res.status(400).json({message: "No file uploaded"});
