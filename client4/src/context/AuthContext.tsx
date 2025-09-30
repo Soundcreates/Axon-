@@ -7,7 +7,8 @@ type User = {
   name: string;
   email: string;
   bio?: string;
-  roles: string;
+  role: string;
+  rep: number;
 
 }
 type AuthContextType = {
@@ -15,6 +16,7 @@ type AuthContextType = {
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  fetchUser: () => {}
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchUser();
   }, [])
   return (
-    <AuthContext.Provider value={{ user, isLoading, setIsLoading }} >
+    <AuthContext.Provider value={{ user, isLoading, setIsLoading, fetchUser }} >
       {children}
     </AuthContext.Provider>
   )

@@ -3,78 +3,55 @@ import User from '../models/userModel.js';
 import ipfsService from '../services/ipfsService.js';
 
 const submitManuscript = async (req, res) => {
-    try {
-        const { title, abstract, keywords, category, coAuthors } = req.body;
-        
-        if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                message: 'Manuscript file is required'
-            });
-        }
+  try {
+    const {
+      title,
+      description,
+      keywords,
+      category,
+      ipfsHash,
+      selectedReviewers,
+      reviewerCount,
+      priority,
+      stakingCost,
+      transactionHash,
+      blockchainId
+    } = req.body;
 
-        // Upload to IPFS
-        const contentHash = await ipfsService.uploadBuffer(
-            req.file.buffer,
-            req.file.originalname
-        );
+    const userId = req.user.id;
 
-        // Create manuscript
-        const manuscript = new Manuscript({
-            title,
-            abstract,
-            keywords: keywords ? keywords.split(',').map(k => k.trim()) : [],
-            category,
-            author: req.user._id,
-            coAuthors: coAuthors || [],
-            contentHash,
-            deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-            metadata: {
-                fileSize: req.file.size,
-                fileName: req.file.originalname,
-                mimeType: req.file.mimetype
-            }
-        });
+    const manuscript = await Manuscript.create({
+      title,
+      description,
+      keywords,
+      category,
+      ipfsHash,
+      author: userId,
+      reviewers: selectedReviewers,
+      reviewerCount,
+      priority,
+      stakingCost,
+      transactionHash,
+      blockchainId,
+      status: 'submitted',
+      submissionDate: new Date()
+    });
 
-        await manuscript.save();
+    res.status(200).json({
+      success: true,
+      message: "Manuscript submitted successfully",
+      manuscript: manuscript
+    });
 
-        // Submit to blockchain
-        try {
-            const blockchainResult = await blockchainService.submitManuscript(
-                contentHash,
-                title,
-                req.user.walletAddress
-            );
-            
-            manuscript.blockchain = {
-                manuscriptId: blockchainResult.manuscriptId,
-                transactionHash: blockchainResult.transactionHash,
-                blockNumber: blockchainResult.blockNumber
-            };
-            
-            manuscript.status = 'submitted';
-            await manuscript.save();
-        } catch (blockchainError) {
-            console.error('Blockchain submission failed:', blockchainError);
-            // Continue without blockchain if it fails
-        }
-
-        res.status(201).json({
-            success: true,
-            message: 'Manuscript submitted successfully',
-            data: manuscript
-        });
-
-    } catch (error) {
-        console.error('Error submitting manuscript:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to submit manuscript',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
+  } catch (error) {
+    console.error("Error submitting manuscript:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to submit manuscript",
+      error: error.message
+    });
+  }
 };
-
 const getManuscripts = async (req, res) => {
     try {
         const { status, category, page = 1, limit = 10 } = req.query;

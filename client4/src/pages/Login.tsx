@@ -7,6 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useWallet } from "@/context/WalletContext";
 import { toast } from "sonner";
 import { server } from "@/service/backendApi";
+import { useAuth } from "@/context/AuthContext";
 
 type formDataTypeLogin = {
   email: string;
@@ -16,7 +17,7 @@ type formDataTypeLogin = {
 const Login = () => {
   const navigate = useNavigate();
   const { account, connectWallet, status } = useWallet();
-
+  const { fetchUser } = useAuth();
   const [formData, setFormData] = useState<formDataTypeLogin>({
     email: "",
     password: ""
@@ -83,6 +84,7 @@ const Login = () => {
         localStorage.setItem('user', JSON.stringify(response.data.user));
 
         // Redirect to dashboard after a brief delay
+        fetchUser();
         setTimeout(() => {
           navigate("/dashboard");
         }, 1500);

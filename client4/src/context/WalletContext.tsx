@@ -11,6 +11,7 @@ import { ethers, BrowserProvider, Signer, formatEther } from "ethers";
 // --- Define the types for our context ---
 type WalletContextType = {
   account: string | null;
+
   signer: Signer | null;
   provider: BrowserProvider | null;
   balance: string | null;
@@ -92,9 +93,26 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // --- Auto-connect on page load ---
+  // --- Auto-connect on page load ---
   useEffect(() => {
     const autoConnect = async () => {
-      if (!(window as any).ethereum) return;
+      if (!(window as any).ethereum) {
+        // If MetaMask is not available, try to get account from localStorage
+        try {
+          const storedUser = localStorage.getItem("user");
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            if (userData.walletAddress) {
+              setAccount(userData.walletAddress);
+              setStatus("disconnected"); // Set as disconnected since no MetaMask connection
+              console.log("Loaded wallet address from localStorage:", userData.walletAddress);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to parse user data from localStorage:", error);
+        }
+        return;
+      }
 
       try {
         const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
@@ -103,16 +121,43 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
         if (accounts.length > 0) {
           await initializeWalletState(browserProvider, accounts);
           localStorage.setItem("walletConnected", "true");
+        } else {
+          // If no MetaMask accounts but user data exists in localStorage
+          try {
+            const storedUser = localStorage.getItem("user");
+            if (storedUser) {
+              const userData = JSON.parse(storedUser);
+              if (userData.walletAddress) {
+                setAccount(userData.walletAddress);
+                setStatus("disconnected"); // Set as disconnected since no active MetaMask connection
+                console.log("Loaded wallet address from localStorage:", userData.walletAddress);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to parse user data from localStorage:", error);
+          }
         }
       } catch (error) {
         console.error("Auto-connect failed:", error);
+
+        // Fallback to localStorage if MetaMask connection fails
+        try {
+          const storedUser = localStorage.getItem("user");
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            if (userData.walletAddress) {
+              setAccount(userData.walletAddress);
+              setStatus("disconnected");
+              console.log("Fallback: Loaded wallet address from localStorage:", userData.walletAddress);
+            }
+          }
+        } catch (parseError) {
+          console.error("Failed to parse user data from localStorage:", parseError);
+        }
       }
     };
 
-    // Only auto-connect if user was previously connected
-    if (localStorage.getItem("walletConnected") === "true") {
-      autoConnect();
-    }
+    autoConnect();
   }, [initializeWalletState]);
 
   // --- Effect to update balance when account or provider changes ---
