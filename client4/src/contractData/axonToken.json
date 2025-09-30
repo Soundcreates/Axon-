@@ -1,5 +1,5 @@
 {
-  "address": "0x2d9e22cea1a347574aDf3029dbaEc5C4499e00C5",
+  "address": "0xcb60b5cAd58C283Df6DE08C08600988196b000f1",
   "abi": [
     {
       "type": "constructor",
@@ -249,6 +249,38 @@
     },
     {
       "type": "function",
+      "name": "giveWelcomeTokens",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "to"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "hasReceivedWelcomeTokens",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
       "name": "initialSupply",
       "constant": true,
       "stateMutability": "view",
@@ -260,6 +292,23 @@
           "name": ""
         }
       ]
+    },
+    {
+      "type": "function",
+      "name": "mint",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "to"
+        },
+        {
+          "type": "uint256",
+          "name": "amount"
+        }
+      ],
+      "outputs": []
     },
     {
       "type": "function",

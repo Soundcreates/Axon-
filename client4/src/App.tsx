@@ -14,13 +14,17 @@ import NotFound from "./pages/NotFound";
 import Register from "./pages/Register"
 
 import { WalletProvider } from "./context/WalletContext";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Wallet } from "lucide-react";
+import { ContractProvider } from "./context/ContractContext";
+import { TokenProvider } from "./context/TokenContext";
 
 
 const queryClient = new QueryClient();
 
 const App = () => (
+
+
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -28,24 +32,32 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <WalletProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/payment" element={<Payment />} />
-              <Route path="/timeline" element={<Timeline />} />
-              <Route path="/submission" element={<Submission />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <ContractProvider>
+
+              <TokenProvider>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/payment" element={<Payment />} />
+                  <Route path="/timeline" element={<Timeline />} />
+
+                  <Route path="/submission" element={<Submission />} />
+
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </TokenProvider>
+            </ContractProvider>
+
           </WalletProvider>
         </AuthProvider>
 
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </QueryClientProvider >
 );
 
 export default App;

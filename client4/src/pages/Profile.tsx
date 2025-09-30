@@ -3,41 +3,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { 
-  User, 
-  Mail, 
-  MapPin, 
-  Calendar, 
-  Star, 
-  Trophy, 
-  Coins, 
-  FileText, 
+import {
+  User,
+  Mail,
+  MapPin,
+  Calendar,
+  Star,
+  Trophy,
+  Coins,
+  FileText,
   Users,
   ArrowLeft,
   Edit,
   Settings
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { useEffect } from "react";
 
 const Profile = () => {
+
+  const { user, fetchUser } = useAuth();
+  useEffect(() => {
+    // console.log("Fetched user at dashboard");
+    fetchUser();
+  })
   // Mock user data - will be fetched from Supabase
   const userData = {
-    name: "Dr. Sarah Chen",
-    email: "sarah.chen@stanford.edu",
-    institution: "Stanford University",
-    department: "Computer Science",
-    joinDate: "March 2024",
-    reputation: 4.8,
-    totalReviews: 47,
-    tokensEarned: 1250,
-    currentTokens: 890,
-    expertise: ["Machine Learning", "Neural Networks", "Computer Vision"],
-    stats: {
-      manuscriptsSubmitted: 12,
-      reviewsCompleted: 47,
-      averageReviewTime: "3.2 days",
-      onTimeDelivery: 96
-    }
+    name: user?.name,
+    email: user?.email,
+
+    reputation: user?.rep,
+
+
   };
 
   return (
@@ -78,14 +76,8 @@ const Profile = () => {
                     <Mail className="h-4 w-4" />
                     {userData.email}
                   </div>
-                  <div className="flex items-center gap-2 justify-center">
-                    <MapPin className="h-4 w-4" />
-                    {userData.institution}
-                  </div>
-                  <div className="flex items-center gap-2 justify-center">
-                    <Calendar className="h-4 w-4" />
-                    Joined {userData.joinDate}
-                  </div>
+
+
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-center">
@@ -93,7 +85,7 @@ const Profile = () => {
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Profile
                 </Button>
-                
+
                 {/* Reputation Score */}
                 <div className="p-4 bg-secondary/20 rounded-lg">
                   <div className="flex items-center justify-center gap-2 mb-2">
@@ -108,7 +100,7 @@ const Profile = () => {
             </Card>
 
             {/* Expertise Areas */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Expertise Areas</CardTitle>
               </CardHeader>
@@ -121,7 +113,7 @@ const Profile = () => {
                   ))}
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
 
           {/* Stats and Activity */}
@@ -137,11 +129,11 @@ const Profile = () => {
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="p-4 bg-gradient-neural/10 rounded-lg">
-                    <div className="text-2xl font-bold text-primary">{userData.currentTokens}</div>
+                    <div className="text-2xl font-bold text-primary">0</div>
                     <p className="text-sm text-muted-foreground">Current AXON Tokens</p>
                   </div>
                   <div className="p-4 bg-gradient-blockchain/10 rounded-lg">
-                    <div className="text-2xl font-bold text-axon-blockchain">{userData.tokensEarned}</div>
+                    <div className="text-2xl font-bold text-axon-blockchain">0</div>
                     <p className="text-sm text-muted-foreground">Total Earned</p>
                   </div>
                 </div>
@@ -175,29 +167,29 @@ const Profile = () => {
                         <FileText className="h-4 w-4" />
                         <span>Manuscripts Submitted</span>
                       </div>
-                      <span className="font-semibold">{userData.stats.manuscriptsSubmitted}</span>
+                      <span className="font-semibold">0</span>
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
                         <span>Reviews Completed</span>
                       </div>
-                      <span className="font-semibold">{userData.stats.reviewsCompleted}</span>
+                      <span className="font-semibold">0</span>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span>Average Review Time</span>
-                      <span className="font-semibold text-green-600">{userData.stats.averageReviewTime}</span>
+                      <span className="font-semibold text-green-600">0</span>
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <span>On-Time Delivery</span>
                       <div className="flex items-center gap-2">
-                        <Progress value={userData.stats.onTimeDelivery} className="w-16" />
-                        <span className="font-semibold text-green-600">{userData.stats.onTimeDelivery}%</span>
+                        <Progress className="w-16" />
+                        <span className="font-semibold text-green-600">0%</span>
                       </div>
                     </div>
                   </div>
@@ -223,7 +215,7 @@ const Profile = () => {
                     </div>
                     <p className="text-xs text-green-700 dark:text-green-300">Completed 25+ high-quality reviews</p>
                   </div>
-                  
+
                   <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center gap-2 mb-2">
                       <Star className="h-4 w-4 text-blue-600" />
@@ -231,7 +223,7 @@ const Profile = () => {
                     </div>
                     <p className="text-xs text-blue-700 dark:text-blue-300">Maintained 4.8+ review rating</p>
                   </div>
-                  
+
                   <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg border border-purple-200 dark:border-purple-800">
                     <div className="flex items-center gap-2 mb-2">
                       <Users className="h-4 w-4 text-purple-600" />
@@ -239,7 +231,7 @@ const Profile = () => {
                     </div>
                     <p className="text-xs text-purple-700 dark:text-purple-300">Referred 5+ researchers to platform</p>
                   </div>
-                  
+
                   <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg border border-orange-200 dark:border-orange-800">
                     <div className="flex items-center gap-2 mb-2">
                       <Coins className="h-4 w-4 text-orange-600" />
@@ -266,7 +258,7 @@ const Profile = () => {
                       <p className="text-xs text-muted-foreground">2 hours ago • +25 AXON tokens • Quality: 4.9/5</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
                     <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                     <div className="flex-1">
@@ -274,7 +266,7 @@ const Profile = () => {
                       <p className="text-xs text-muted-foreground">1 day ago • Under peer review • 2/3 reviewers assigned</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
                     <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
                     <div className="flex-1">
@@ -282,7 +274,7 @@ const Profile = () => {
                       <p className="text-xs text-muted-foreground">3 days ago • 50 AXON tokens staked • Deadline: 5 days remaining</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
                     <div className="w-2 h-2 rounded-full bg-purple-500"></div>
                     <div className="flex-1">

@@ -7,10 +7,10 @@ const registerUser = async (req, res) => {
         const { name, email, password, role, walletAddress, username } = req.body;
         
         // Validate required fields
-        if (!name || !email || !password || !role || !walletAddress) {
+        if (!name || !email || !password || !role || !walletAddress || !username) {
             return res.status(400).json({
                 success: false,
-                message: "All fields are required"
+                message: "All fields (name, username, email, password, role, walletAddress) are required"
             });
         }
 
@@ -39,6 +39,14 @@ const registerUser = async (req, res) => {
             password: hashedPassword,
             role
         });
+
+        // Verify user was created successfully
+        if (!newUser) {
+            return res.status(500).json({
+                success: false,
+                message: "Failed to create user"
+            });
+        }
 
         // Generate token
         const token = setUser(newUser);

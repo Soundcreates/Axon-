@@ -15,6 +15,12 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useEffect, useState } from "react";
+import { useContracts } from "@/context/ContractContext";
+import { useWallet } from "@/context/WalletContext";
+import { useToken } from "@/context/TokenContext";
+import { toast } from "sonner";
+import { TokenDebug } from "@/components/debug/TokenDebug";
 
 type User = {
   walletAddress: string;
@@ -22,13 +28,122 @@ type User = {
   name: string;
   email: string;
   bio?: string;
-  roles: string;
+  role: string;
   rep?: number;
 
 }
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const tokenContext = useToken();
+  const { account, status: walletStatus, setAccount } = useWallet();
+
+  //states type shi
+  const [tokenBalanceOf, setTokenBalance] = useState<number>(0);
+  const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(true);
+  const [hasTriedWelcomeTokens, setHasTriedWelcomeTokens] = useState<boolean>(false);
+
+  // Destructure after null check
+  const { sendWelcomeTokens, tokenBalance, isLoading: tokenLoading } = tokenContext || {};
+
+  useEffect(() => {
+    const fetchTokenBalance = async () => {
+      console.log('Fetching acc balance');
+      console.log('Account:', account);
+      console.log('TokenBalance function available:', !!tokenBalance);
+      console.log('Token context loading:', tokenLoading);
+
+      if (!account) {
+        console.log("No account available yet");
+        setIsLoadingBalance(false);
+        return;
+      }
+
+      if (!tokenBalance) {
+        console.log("TokenBalance function not available yet");
+        return;
+      }
+
+      try {
+        console.log("Account found, fetching token balance for:", account);
+        const balance = await tokenBalance(account);
+
+        // Convert BigInt to number properly (assuming 18 decimals)
+        const balanceNumber = Number(balance) / (10 ** 18);
+        console.log("Raw balance:", balance.toString());
+        console.log("Formatted balance:", balanceNumber);
+        setTokenBalance(balanceNumber);
+      } catch (error) {
+        console.error("Error fetching token balance:", error);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    }
+
+    fetchTokenBalance();
+  }, [account, tokenBalance, tokenLoading]);
+
+  // Separate useEffect for welcome tokens (only run once)
+  useEffect(() => {
+    const handleWelcomeTokens = async () => {
+      console.log("Checking and sending welcome tokens if applicable...");
+      if (!account) {
+
+      }
+
+      if (!account || !sendWelcomeTokens || hasTriedWelcomeTokens || tokenLoading) {
+        console.log("Conditions not met for welcome tokens:", {
+          account: !!account,
+          sendWelcomeTokens: !!sendWelcomeTokens,
+          hasTriedWelcomeTokens,
+          tokenLoading
+        });
+        return;
+      }
+
+      setHasTriedWelcomeTokens(true);
+
+      try {
+        await sendWelcomeTokens(account);
+        toast.success("Welcome tokens sent to your account!");
+        console.log("Tokens sent successfully");
+
+        // Refresh balance after successful token send
+        setTimeout(async () => {
+          if (tokenBalance) {
+            try {
+              const balance = await tokenBalance(account);
+              const balanceNumber = Number(balance) / (10 ** 18);
+              setTokenBalance(balanceNumber);
+            } catch (error) {
+              console.error("Error refreshing balance:", error);
+            }
+          }
+        }, 2000);
+
+      } catch (err) {
+        console.error("Error sending welcome tokens: ", err);
+        if (err instanceof Error && err.message.includes('already received')) {
+          console.log("User already received welcome tokens");
+        } else {
+          toast.error("Failed to send welcome tokens");
+        }
+      }
+    }
+
+    // Only run if wallet is connected and we haven't tried yet
+    if (walletStatus === 'connected' && account && sendWelcomeTokens && !hasTriedWelcomeTokens && !tokenLoading) {
+      handleWelcomeTokens();
+    }
+  }, [account, sendWelcomeTokens, walletStatus, hasTriedWelcomeTokens, tokenLoading, tokenBalance]);
+
+  useEffect(() => {
+    if (user) {
+      console.log("user role is: ", user.role);
+    } else {
+      console.log("User hasnt loaded in!")
+    }
+  }, [])
   // Mock user data - will be fetched from Supabase
   const userData = {
     name: user?.name,
@@ -67,7 +182,7 @@ const Dashboard = () => {
                     <div className="w-8 h-8 bg-gradient-neural rounded-full flex items-center justify-center text-white text-sm font-medium">
                       SC
                     </div>
-                    <span className="hidden sm:block">{userData.name}</span>
+                    <span className="hidden sm:block">{user?.username}</span>
                   </div>
                 </Button>
               </Link>
@@ -94,21 +209,29 @@ const Dashboard = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold">Welcome back, Dr. Chen</h1>
+              <h1 className="text-3xl font-bold">Welcome back, {user?.name} </h1>
               <p className="text-muted-foreground">Manage your research submissions and peer reviews</p>
             </div>
             <div className="flex gap-2">
-              <Link to="/submission">
-                <Button variant="neural">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Submit Manuscript
-                </Button>
-              </Link>
+              {
+                user?.role === "author" &&
+                (
+                  <Link to="/submission">
+                    <Button variant="neural">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Submit Manuscript
+                    </Button>
+                  </Link>
+
+                )
+              }
+
               <Link to="/payment">
                 <Button variant="outline-neural">
                   Buy Tokens
                 </Button>
               </Link>
+
             </div>
           </div>
         </div>
@@ -120,7 +243,7 @@ const Dashboard = () => {
         <div className="grid lg:grid-cols-2 gap-6 mt-6">
           <TokenBalance
             staked={150}
-            available={740}
+            available={tokenBalanceOf}
             earned={320}
             symbol="AXON"
           />
@@ -130,6 +253,11 @@ const Dashboard = () => {
             reviews={47}
             expertise={["Machine Learning", "Neural Networks", "Computer Vision"]}
           />
+        </div>
+
+        {/* Debug Panel - Remove this in production */}
+        <div className="mt-6">
+          <TokenDebug />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mt-8">
@@ -152,7 +280,7 @@ const Dashboard = () => {
                     <span className="text-sm">Reputation</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold">{userData.reputation}</span>
+                    <span className="font-bold">10</span>
                     <span className="text-muted-foreground text-sm">/5.0</span>
                   </div>
                 </div>

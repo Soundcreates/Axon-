@@ -7,6 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useWallet } from "@/context/WalletContext";
 import { toast } from "sonner";
 import { server } from "@/service/backendApi";
+import { useAuth } from "@/context/AuthContext";
 
 type FormData = {
   name: string;
@@ -17,6 +18,7 @@ type FormData = {
 }
 
 const Register = () => {
+  const { fetchUser } = useAuth();
   const navigate = useNavigate();
   const { account, connectWallet, status } = useWallet();
 
@@ -108,9 +110,13 @@ const Register = () => {
         walletAddress: account
       };
 
+      console.log("Sending registration data:", registrationData);
+
       const response = await server.post('/auth/register', registrationData);
 
-      if (response.status === 200) {
+      console.log("Registration response:", response);
+
+      if (response.status === 200 && response.data.success) {
         toast.success("Registration successful! Redirecting to dashboard...");
 
         // Store the token and user data
@@ -118,14 +124,16 @@ const Register = () => {
         localStorage.setItem('user', JSON.stringify(response.data.user));
 
         // Redirect to dashboard after a brief delay
+        fetchUser();
         navigate("/dashboard");
 
       } else {
         toast.error(response.data.message || "Registration failed. Please try again.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
-      toast.error("Network error. Please check your connection and try again.");
+      const errorMessage = error.response?.data?.message || "Network error. Please check your connection and try again.";
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
