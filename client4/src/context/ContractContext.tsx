@@ -42,7 +42,7 @@ interface IContractContext extends IContractState {
   peerReview_submitManuscript: (
     manuscriptHash: string,
     title: string
-  ) => Promise<void>;
+  ) => Promise<ethers.ContractTransactionResponse>;
   peerReview_assignReviewers: (
     manuscriptId: string,
     reviewers: string[]
@@ -87,12 +87,12 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
       try {
         const peerReviewInstance = new ethers.Contract(
           PEER_REVIEW_ADDRESS,
-          PeerReviewABI.abi || PeerReviewABI, // Handle different JSON structures
+          PeerReviewABI.abi, // Use the abi property
           signer
         );
         const axonTokenInstance = new ethers.Contract(
           AXON_TOKEN_ADDRESS,
-          AxonTokenABI.abi || AxonTokenABI, // Handle different JSON structures
+          AxonTokenABI.abi, // Use the abi property
           signer
         );
 
@@ -138,11 +138,22 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
 
   // Wrapper Functions for Smart Contract Methods
   const peerReview_submitManuscript = useCallback(
-    async (manuscriptHash: string, title: string) => {
+    async (manuscriptHash: string, title: string): Promise<ethers.ContractTransactionResponse> => {
       if (!state.peerReviewContract) throw new Error("Contract not initialized");
-      await handleTransaction(
-        state.peerReviewContract.submitManuscript(manuscriptHash, title)
-      );
+
+      try {
+        setState((s) => ({ ...s, isLoading: true, error: null }));
+        const tx = await state.peerReviewContract.submitManuscript(manuscriptHash, title);
+        console.log("Transaction submitted:", tx);
+        return tx;
+      } catch (e: any) {
+        const errorMessage = e.reason || e.message || "Transaction failed";
+        console.error("Transaction failed:", errorMessage);
+        setState((s) => ({ ...s, error: errorMessage }));
+        throw new Error(errorMessage);
+      } finally {
+        setState((s) => ({ ...s, isLoading: false }));
+      }
     },
     [state.peerReviewContract]
   );

@@ -19,15 +19,45 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useToken } from "@/context/TokenContext";
+import { useWallet } from "@/context/WalletContext";
 
 const Profile = () => {
 
   const { user, fetchUser } = useAuth();
+  const { tokenBalance, isLoading: tokenLoading } = useToken();
+  const { account } = useWallet();
+
+  const [balance, setBalance] = useState<string>('0');
+  const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(true);
+
   useEffect(() => {
-    // console.log("Fetched user at dashboard");
     fetchUser();
-  })
+  }, []); // Remove the dependency to prevent infinite loop
+
+  useEffect(() => {
+    const fetchTokenBalance = async () => {
+      if (!account || !tokenBalance || tokenLoading) {
+        setIsLoadingBalance(false);
+        return;
+      }
+
+      try {
+        setIsLoadingBalance(true);
+        const bal = await tokenBalance(account);
+        const formattedBalance = (Number(bal) / (10 ** 18)).toFixed(2);
+        setBalance(formattedBalance);
+      } catch (error) {
+        console.error("Error fetching token balance:", error);
+        setBalance("0");
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    };
+
+    fetchTokenBalance();
+  }, [account, tokenBalance, tokenLoading]);
   // Mock user data - will be fetched from Supabase
   const userData = {
     name: user?.name,
@@ -129,11 +159,15 @@ const Profile = () => {
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="p-4 bg-gradient-neural/10 rounded-lg">
-                    <div className="text-2xl font-bold text-primary">0</div>
+                    <div className="text-2xl font-bold text-primary">
+                      {isLoadingBalance ? "Loading..." : balance}
+                    </div>
                     <p className="text-sm text-muted-foreground">Current AXON Tokens</p>
                   </div>
                   <div className="p-4 bg-gradient-blockchain/10 rounded-lg">
-                    <div className="text-2xl font-bold text-axon-blockchain">0</div>
+                    <div className="text-2xl font-bold text-axon-blockchain">
+                      {isLoadingBalance ? "Loading..." : balance}
+                    </div>
                     <p className="text-sm text-muted-foreground">Total Earned</p>
                   </div>
                 </div>

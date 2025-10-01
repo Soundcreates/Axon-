@@ -15,7 +15,6 @@ interface ITokenContext extends ITokenState {
   tokenBalance: (address: string) => Promise<bigint>;
   sendToken: (to: string, amount: bigint) => Promise<void>;
   sendWelcomeTokens: (to: string) => Promise<void>;
-
 }
 
 export const TokenContext = createContext<ITokenContext | undefined>(
@@ -32,47 +31,96 @@ export const TokenProvider = ({ children }: TokenProviderProps) => {
     isLoading: true,
     error: null,
   });
-  const { signer } = useWallet();
+  const { signer, provider } = useWallet(); // Add provider dependency
 
   useEffect(() => {
     const initializeContract = async () => {
-      if (signer) {
-        try {
-          setTokenContract(prevState => ({
-            ...prevState,
-            isLoading: true,
-          }));
-
-          const tokenInstance = new ethers.Contract(AXON_TOKEN_ADDRESS, TokenContract.abi, signer);
-
-          setTokenContract(prevState => ({
-            ...prevState,
-            tokenContract: tokenInstance,
-            isLoading: false,
-            error: null,
-          }));
-        } catch (err) {
-          console.error("Error initializing token contract:", err);
-          setTokenContract(prevState => ({
-            ...prevState,
-            isLoading: false,
-            error: "Failed to initialize token contract",
-          }));
-        }
-      } else {
+      try {
         setTokenContract(prevState => ({
           ...prevState,
+          isLoading: true,
+          error: null,
+        }));
+
+        // Use provider if available, fallback to a default provider
+        let contractProvider = provider;
+
+        // if (!contractProvider) { not needed , this is causing infinite loop of errors 
+        //   console.log("No wallet provider, creating default provider...");
+        //   // Create a default provider for read-only operations
+        //   contractProvider = new ethers.JsonRpcProvider("http://localhost:8080");
+        // }
+
+        const tokenInstance = new ethers.Contract(
+          AXON_TOKEN_ADDRESS,
+          TokenContract.abi,
+          contractProvider
+        );
+
+        // Test the contract connection
+        try {
+          const name = await Promise.race([
+            tokenInstance.name(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Contract connection timeout")), 10000)
+            )
+          ]);
+          console.log("Token contract initialized successfully:", name);
+        } catch (testError) {
+          console.error("Contract test failed:", testError);
+          // Don't throw here, just log the error and continue
+          console.warn("Contract test failed but continuing with initialization");
+        }
+
+        setTokenContract(prevState => ({
+          ...prevState,
+          tokenContract: tokenInstance,
           isLoading: false,
+          error: null,
+        }));
+
+      } catch (err) {
+        console.error("Error initializing token contract:", err);
+        setTokenContract(prevState => ({
+          ...prevState,
+          tokenContract: null,
+          isLoading: false,
+          error: err instanceof Error ? err.message : "Failed to initialize token contract",
         }));
       }
     };
 
     initializeContract();
-  }, [signer]);
-  // c
+  }, [provider, signer]); // Include both provider and signer
+
+  //this is thoda complicated
   const tokenBalance = useCallback(
     async (address: string): Promise<bigint> => {
-      if (!tokenContract.tokenContract) throw new Error("Token contract not initialized");
+      // Wait for contract to be ready if it's still loading
+      if (tokenContract.isLoading) {
+        return new Promise((resolve, reject) => {
+          const checkReady = () => {
+            if (!tokenContract.isLoading) { //this checks if tokenContract isnot loading and then if tokenContract's tokenContract exists
+              if (tokenContract.tokenContract) {
+                resolve(tokenContract.tokenContract.balanceOf(address));
+              } else {
+                reject(new Error("Token contract failed to initialize"));
+              }
+            } else {
+              setTimeout(checkReady, 100);
+            }
+          };
+          setTimeout(checkReady, 100);
+        });
+      }
+
+      if (!tokenContract.tokenContract) {
+        throw new Error("Token contract not initialized");
+      }
+
+      if (!ethers.isAddress(address)) {
+        throw new Error("Invalid address format");
+      }
 
       try {
         const balance = await tokenContract.tokenContract.balanceOf(address);
@@ -80,23 +128,49 @@ export const TokenProvider = ({ children }: TokenProviderProps) => {
         return balance;
       } catch (error) {
         console.error("Error fetching token balance:", error);
-        throw error;
+        throw new Error(`Failed to fetch balance: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-    }, [tokenContract.tokenContract]
+    },
+    [tokenContract.tokenContract, tokenContract.isLoading]
   );
 
   const sendToken = useCallback(
     async (to: string, amount: bigint) => {
-      if (!tokenContract.tokenContract) throw new Error("Token contract not initialized");
-      const contractWithSigner = tokenContract.tokenContract.connect(signer);
-      await (contractWithSigner as any).transfer(to, amount);
-    }, [tokenContract.tokenContract, signer]
+      if (!tokenContract.tokenContract) {
+        throw new Error("Token contract not initialized");
+      }
+      if (!signer) {
+        throw new Error("Wallet not connected - please connect your wallet");
+      }
+      if (!ethers.isAddress(to)) {
+        throw new Error("Invalid recipient address");
+      }
+
+      try {
+        const contractWithSigner = tokenContract.tokenContract.connect(signer);
+        const tx = await (contractWithSigner as any).transfer(to, amount);
+        const receipt = await tx.wait();
+        console.log("Token transfer successful:", receipt.transactionHash);
+        return tx;
+      } catch (error) {
+        console.error("Error sending tokens:", error);
+        throw new Error(`Failed to send tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    },
+    [tokenContract.tokenContract, signer]
   );
 
   const sendWelcomeTokens = useCallback(
     async (to: string) => {
-      if (!tokenContract.tokenContract) throw new Error("Token contract not initialized");
-      if (!signer) throw new Error("Signer not available");
+      if (!tokenContract.tokenContract) {
+        throw new Error("Token contract not initialized");
+      }
+      if (!signer) {
+        throw new Error("Wallet not connected - please connect your wallet");
+      }
+      if (!ethers.isAddress(to)) {
+        throw new Error("Invalid recipient address");
+      }
 
       try {
         // Check if user already received welcome tokens
@@ -113,12 +187,14 @@ export const TokenProvider = ({ children }: TokenProviderProps) => {
         return tx;
       } catch (error) {
         console.error("Error in sendWelcomeTokens:", error);
-        throw error;
+        if (error instanceof Error && error.message.includes("already received")) {
+          throw error; // Re-throw specific errors
+        }
+        throw new Error(`Failed to send welcome tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-    }, [tokenContract.tokenContract, signer]
+    },
+    [tokenContract.tokenContract, signer]
   );
-
-
 
   const contextValue: ITokenContext = {
     ...tokenContract,
@@ -128,14 +204,11 @@ export const TokenProvider = ({ children }: TokenProviderProps) => {
   };
 
   return (
-    <TokenContext.Provider value={contextValue} >
+    <TokenContext.Provider value={contextValue}>
       {children}
-    </TokenContext.Provider >
+    </TokenContext.Provider>
   );
-
-
-}
-
+};
 
 export const useToken = () => {
   const context = useContext(TokenContext);
@@ -143,4 +216,4 @@ export const useToken = () => {
     throw new Error('useToken must be used within a TokenProvider');
   }
   return context;
-}
+};
