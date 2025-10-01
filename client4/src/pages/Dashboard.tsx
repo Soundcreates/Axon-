@@ -126,7 +126,7 @@ const Dashboard = () => {
         if (err instanceof Error && err.message.includes('already received')) {
           console.log("User already received welcome tokens");
         } else {
-          toast.error("Failed to send welcome tokens");
+          console.log("Failed to send welcome tokens");
         }
       }
     }

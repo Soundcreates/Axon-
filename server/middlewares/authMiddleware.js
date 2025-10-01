@@ -14,10 +14,12 @@ const checkForAuthentication = (req, res, next) => {
     const user = getUser(token);
 
     if (!user) {
-        if (req.accepts('html')) {
-            return res.redirect('/login?error=Unauthorized');
+        // For API routes, always return JSON response
+        if (req.originalUrl.startsWith('/api')) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
-        return res.status(401).json({ message: "Unauthorized" });
+        // Only redirect for non-API routes
+        return res.redirect('/login?error=Unauthorized');
     }
 
     req.user = user;

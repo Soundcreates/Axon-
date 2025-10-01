@@ -21,6 +21,8 @@ import {
 import { Form, Link, useNavigate } from "react-router-dom";
 import { server } from "@/service/backendApi";
 import { useContracts } from "@/context/ContractContext";
+import { useWallet } from "@/context/WalletContext";
+import { ContractDebug } from "@/components/debug/ContractDebug";
 import { toast } from "sonner";
 
 interface Reviewer {
@@ -38,13 +40,15 @@ interface FormData {
   category: string;
   file: File | null;
   reviewerCount: number;
-  priority: "standard";
+  priority: "standard" | "urgent";
   selectedReviewers: string[];
 }
 
 const Submission = () => {
 
-  const { peerReview_submitManuscript } = useContracts();
+  const contractContext = useContracts();
+  const { peerReview_submitManuscript } = contractContext;
+  const { status: walletStatus, account, connectWallet } = useWallet();
   const [formData, setFormData] = useState<FormData>({
     title: "",
     description: "",
@@ -157,6 +161,11 @@ const Submission = () => {
     // TODO: implement main functionality
     if (step === 4) {
       try {
+        // Pre-submission validation
+        const token = localStorage.getItem("token");
+        if (!token) {
+          throw new Error("You must be logged in to submit a manuscript. Please log in first.");
+        }
 
         if (!formData.file) {
           throw new Error("No file selected");
@@ -172,16 +181,27 @@ const Submission = () => {
         let ipfsUpload;
 
         if (formData.file && formData.file.name) {
-          console.log(formData.file);
+          console.log("Starting IPFS upload for file:", formData.file);
           const fileFormData = new FormData;
           fileFormData.append('file', formData.file);
           fileFormData.append('fileName', formData.file.name);
-          ipfsUpload = await server.post('/user/upload', fileFormData, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem("token")}`,
-            }
-          })
 
+          console.log("Uploading to IPFS with token:", localStorage.getItem("token") ? "Token exists" : "No token");
+
+          try {
+            ipfsUpload = await server.post('/user/upload', fileFormData, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem("token")}`,
+                'Content-Type': 'multipart/form-data'
+              }
+            });
+            console.log("IPFS upload response:", ipfsUpload);
+          } catch (uploadError) {
+            console.error("IPFS upload failed:", uploadError);
+            throw new Error(`File upload failed: ${uploadError.response?.data?.message || uploadError.message}`);
+          }
+        } else {
+          throw new Error("No file selected for upload");
         }
 
 
@@ -196,14 +216,46 @@ const Submission = () => {
 
           console.log("Submitting to blockchain..");
 
+          // Check wallet connection
+          if (walletStatus !== "connected" || !account) {
+            throw new Error("Please connect your wallet to submit a manuscript.");
+          }
+
+          // Add debugging information
+          console.log("Contract context:", contractContext);
+          console.log("Is contracts loaded:", contractContext.isLoading);
+          console.log("Contract error:", contractContext.error);
+          console.log("Peer review contract:", contractContext.peerReviewContract);
+          console.log("Wallet status:", walletStatus);
+          console.log("Wallet account:", account);
+
+          // Add validation before calling the contract function
+          if (!peerReview_submitManuscript) {
+            throw new Error("Contract function not available. Please check your wallet connection.");
+          }
+
+          if (!contractContext.peerReviewContract) {
+            throw new Error("Contract not initialized. Please ensure your wallet is connected and try again.");
+          }
+
+          console.log("About to call peerReview_submitManuscript with:", {
+            uploadFileHash,
+            title: formData.title
+          });
+
           const contractTx = await peerReview_submitManuscript(
             uploadFileHash,
             formData.title
-          )
+          );
 
-          const receipt = await contractTx.wait();
+          // Add validation for the transaction result
+          if (!contractTx) {
+            throw new Error("Transaction failed. Contract function returned undefined.");
+          }
 
-          console.log("Blockchain transaction successfull: ", contractTx);
+          console.log("Contract transaction object:", contractTx); const receipt = await contractTx.wait();
+
+          console.log("Blockchain transaction successful: ", contractTx);
           //saving manuscript details to backend database
 
           console.log("Saving manuscript details to off chain db");
@@ -217,26 +269,36 @@ const Submission = () => {
             reviewerCount: formData.reviewerCount,
             priority: formData.priority,
             stakingCost: calculateStakingCost(),
-            transactionHash: contractTx.hash || contractTx.transactionhash,
-            blockchainId: contractTx.blockNumber || "pending"
+            transactionHash: contractTx.hash,
+            blockchainId: receipt.blockNumber || "pending"
           };
 
-          const manuscriptSave = await server.post("/manuscript/submit", manuscriptData, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          console.log("Manuscript data to be saved:", manuscriptData);
+          console.log("Using token for submission:", localStorage.getItem("token") ? "Token exists" : "No token");
 
+          try {
+            const manuscriptSave = await server.post("/manuscript/submit", manuscriptData, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            console.log("Manuscript save response:", manuscriptSave);
+
+            if (manuscriptSave.status === 200 && manuscriptSave.data.success) {
+              console.log("Manuscript saved to database!");
+              toast.success("Manuscript submitted successfully!");
+
+              setTimeout(() => {
+                navigate("/timeline");
+              }, 700);
+            } else {
+              throw new Error(`Manuscript save failed: ${manuscriptSave.data?.message || "Unknown error"}`);
             }
-          });
-
-          if (manuscriptSave.status == 200) {
-            console.log("Manuscript saved to database!");
-            toast.success("Manuscript submitted successfully!");
-
-            setTimeout(() => {
-              navigate("/timeline");
-            }, 700);
-          } else {
-            throw new Error("failed to save manuscript!");
+          } catch (saveError) {
+            console.error("Manuscript save failed:", saveError);
+            throw new Error(`Failed to save manuscript: ${saveError.response?.data?.message || saveError.message}`);
           }
         } else {
           throw new Error("failed to upload file to IPFS");
@@ -253,8 +315,26 @@ const Submission = () => {
           errorMessage = "Insufficient funds for transaction.";
         } else if (error.message?.includes("network")) {
           errorMessage = "Network error. Please check your connection.";
+        } else if (error.message?.includes("Contract not initialized")) {
+          errorMessage = "Please connect your wallet and try again.";
+        } else if (error.message?.includes("Transaction failed")) {
+          errorMessage = "Blockchain transaction failed. Please try again.";
+        } else if (error.message?.includes("File upload failed")) {
+          errorMessage = error.message;
+        } else if (error.message?.includes("Failed to save manuscript")) {
+          errorMessage = error.message;
+        } else if (error.response?.status === 401) {
+          errorMessage = "Authentication failed. Please log in again.";
+        } else if (error.response?.status === 403) {
+          errorMessage = "Access denied. Please check your permissions.";
+        } else if (error.response?.status === 404) {
+          errorMessage = "Service not found. Please check if the server is running.";
+        } else if (error.response?.status === 500) {
+          errorMessage = "Server error. Please try again later.";
         } else if (error.response?.data?.message) {
           errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
         }
 
         toast.error(errorMessage);
@@ -283,6 +363,9 @@ const Submission = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10 p-4">
       <div className="max-w-4xl mx-auto">
+        {/* Debug Component - Remove this later */}
+        <ContractDebug />
+
         <div className="flex items-center gap-4 mb-8 slide-down">
           <Link to="/dashboard">
             <Button variant="outline" size="sm">
