@@ -1,107 +1,138 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { 
-  Clock, 
-  FileText, 
-  User, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
+import {
+  Clock,
+  FileText,
+  User,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
   ArrowLeft,
   Search,
   Filter,
   Calendar
 } from "lucide-react";
+
 import { Link } from "react-router-dom";
+import { server } from "@/service/backendApi";
+
+
+//defining manuscript types based on backend structure
+
+type Author = {
+  _id: string;
+  name: string;
+  email: string;
+};
+
+type Reviewer = {
+  reviewer: {
+    _id: string;
+    name: string;
+    email: string;
+    reputation?: number;
+  };
+  assignedAt: string;
+  status: string;
+};
+
+type Manuscript = {
+  _id: string;
+  title: string;
+  abstract: string;
+  keywords: string[];
+  category: string;
+  author: Author;
+  reviewers: Reviewer[];
+  deadline: string;
+  status: string;
+  submittedAt: string;
+  contentHash: string;
+  blockchain: {
+    manuscriptId: string;
+    transactionHash: string;
+    blockNumber: number;
+  };
+};
+
+type TimelineEvent = Manuscript;
 
 const Timeline = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [manuscripts, setManuscripts] = useState<Manuscript[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock timeline data - will be fetched from Supabase
-  const timelineEvents = [
-    {
-      id: 1,
-      type: "submission",
-      title: "Advanced Neural Architecture Search",
-      author: "Dr. Sarah Chen",
-      timestamp: "2024-01-15T10:30:00Z",
-      status: "under_review",
-      tokensStaked: 50,
-      reviewers: 3,
-      dueDate: "2024-02-15T23:59:00Z"
-    },
-    {
-      id: 2,
-      type: "review_completed",
-      title: "Quantum Computing Applications in ML",
-      reviewer: "Dr. Michael Rodriguez",
-      timestamp: "2024-01-14T16:45:00Z",
-      status: "completed",
-      tokensEarned: 25,
-      rating: 4.8
-    },
-    {
-      id: 3,
-      type: "submission_accepted",
-      title: "Federated Learning with Privacy Preservation",
-      author: "Dr. Emily Watson",
-      timestamp: "2024-01-13T14:20:00Z",
-      status: "accepted",
-      tokensReleased: 75,
-      finalRating: 4.9
-    },
-    {
-      id: 4,
-      type: "review_assignment",
-      title: "Transformer Architecture Improvements",
-      assignedTo: "Dr. Sarah Chen",
-      timestamp: "2024-01-12T09:15:00Z",
-      status: "in_progress",
-      tokensStaked: 50,
-      deadline: "2024-01-26T23:59:00Z"
-    },
-    {
-      id: 5,
-      type: "submission_rejected",
-      title: "Basic CNN Implementation Study",
-      author: "John Smith",
-      timestamp: "2024-01-11T11:30:00Z",
-      status: "rejected",
-      reason: "Insufficient novelty and methodology issues",
-      tokensSlashed: 30
-    }
-  ];
+  //fetching manuscripts from backend
+  useEffect(() => {
+    const fetchManuscripts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await server.get("/manuscript/getManuscripts", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
 
-  const getEventIcon = (type: string, status: string) => {
-    switch (type) {
-      case "submission":
-        return <FileText className="h-5 w-5" />;
-      case "review_completed":
+        console.log("Timeline API Response:", response.data);
+        console.log("Token exists:", localStorage.getItem("token") ? "Yes" : "No");
+
+        if (response.data.success) {
+          console.log("Manuscripts found:", response.data.data?.manuscripts?.length || 0);
+          setManuscripts(response.data.data.manuscripts || []);
+        } else {
+          console.log("API returned success: false");
+          setError("Failed to fetch manuscripts");
+        }
+      } catch (err: any) {
+        console.error("Error fetching manuscripts:", err);
+        setError(err.response?.data?.message || "Failed to fetch manuscripts");
+        // Fallback to empty array on error
+        setManuscripts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchManuscripts();
+  }, []);
+
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "submitted":
+        return <FileText className="h-5 w-5 text-blue-500" />;
+      case "under_review":
+        return <Clock className="h-5 w-5 text-yellow-500" />;
+      case "reviewed":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case "submission_accepted":
+      case "accepted":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case "review_assignment":
-        return <User className="h-5 w-5 text-blue-500" />;
-      case "submission_rejected":
+      case "rejected":
         return <XCircle className="h-5 w-5 text-red-500" />;
+      case "published":
+        return <CheckCircle className="h-5 w-5 text-emerald-500" />;
       default:
-        return <AlertCircle className="h-5 w-5" />;
+        return <AlertCircle className="h-5 w-5 text-gray-500" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     const variants = {
+      submitted: "bg-blue-100 text-blue-800",
       under_review: "bg-yellow-100 text-yellow-800",
-      completed: "bg-green-100 text-green-800",
+      reviewed: "bg-green-100 text-green-800",
       accepted: "bg-green-100 text-green-800",
-      in_progress: "bg-blue-100 text-blue-800",
-      rejected: "bg-red-100 text-red-800"
+      rejected: "bg-red-100 text-red-800",
+      published: "bg-emerald-100 text-emerald-800",
+      draft: "bg-gray-100 text-gray-800"
     };
-    
+
     return (
       <Badge className={variants[status as keyof typeof variants] || "bg-gray-100 text-gray-800"}>
         {status.replace('_', ' ').toUpperCase()}
@@ -109,11 +140,12 @@ const Timeline = () => {
     );
   };
 
-  const filteredEvents = timelineEvents.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (event.author?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                         (event.reviewer?.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === "all" || event.status === statusFilter;
+  const filteredManuscripts = manuscripts.filter(manuscript => {
+    const matchesSearch = manuscript.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      manuscript.author.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      manuscript.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      manuscript.keywords.some(keyword => keyword.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = statusFilter === "all" || manuscript.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -154,11 +186,13 @@ const Timeline = () => {
                   className="px-3 py-2 border rounded-md bg-background"
                 >
                   <option value="all">All Status</option>
+                  <option value="draft">Draft</option>
+                  <option value="submitted">Submitted</option>
                   <option value="under_review">Under Review</option>
-                  <option value="completed">Completed</option>
+                  <option value="reviewed">Reviewed</option>
                   <option value="accepted">Accepted</option>
-                  <option value="in_progress">In Progress</option>
                   <option value="rejected">Rejected</option>
+                  <option value="published">Published</option>
                 </select>
               </div>
             </div>
@@ -167,97 +201,100 @@ const Timeline = () => {
 
         {/* Timeline */}
         <div className="space-y-4">
-          {filteredEvents.map((event, index) => (
-            <Card key={event.id} className="border-l-4 border-l-primary/50 hover:shadow-neural transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex items-center justify-center w-10 h-10 bg-secondary/20 rounded-full">
-                    {getEventIcon(event.type, event.status)}
-                  </div>
-                  
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold text-lg">{event.title}</h3>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(event.timestamp).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+          {loading ? (
+            <Card className="p-6">
+              <div className="text-center">Loading manuscripts...</div>
+            </Card>
+          ) : error ? (
+            <Card className="p-6">
+              <div className="text-center text-red-600">Error: {error}</div>
+            </Card>
+          ) : filteredManuscripts.length === 0 ? (
+            <Card className="p-6">
+              <div className="text-center text-muted-foreground">No manuscripts found</div>
+            </Card>
+          ) : (
+            filteredManuscripts.map((manuscript) => (
+              <Card key={manuscript._id} className="border-l-4 border-l-primary/50 hover:shadow-neural transition-all duration-300">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex items-center justify-center w-10 h-10 bg-secondary/20 rounded-full">
+                      {getStatusIcon(manuscript.status)}
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg">{manuscript.title}</h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            Submitted: {new Date(manuscript.submittedAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Clock className="h-4 w-4" />
+                            Deadline: {new Date(manuscript.deadline).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </div>
+                        </div>
+                        {getStatusBadge(manuscript.status)}
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-4 mt-4">
+                        <div className="space-y-1">
+                          <p className="text-sm"><span className="font-medium">Author:</span> {manuscript.author.name}</p>
+                          <p className="text-sm"><span className="font-medium">Category:</span> {manuscript.category}</p>
+                          <p className="text-sm"><span className="font-medium">Keywords:</span> {manuscript.keywords.join(', ')}</p>
+                          {manuscript.reviewers.length > 0 && (
+                            <p className="text-sm">
+                              <span className="font-medium">Reviewers:</span> {manuscript.reviewers.length} assigned
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <p className="text-sm">
+                            <span className="font-medium">Content Hash:</span>
+                            <span className="font-mono text-xs ml-1">{manuscript.contentHash.substring(0, 20)}...</span>
+                          </p>
+                          {manuscript.blockchain.transactionHash && (
+                            <p className="text-sm">
+                              <span className="font-medium">Tx Hash:</span>
+                              <span className="font-mono text-xs ml-1">{manuscript.blockchain.transactionHash.substring(0, 20)}...</span>
+                            </p>
+                          )}
+                          {manuscript.blockchain.blockNumber && (
+                            <p className="text-sm">
+                              <span className="font-medium">Block:</span> {manuscript.blockchain.blockNumber}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      {getStatusBadge(event.status)}
-                    </div>
 
-                    <div className="grid md:grid-cols-2 gap-4 mt-4">
-                      <div className="space-y-1">
-                        {event.author && (
-                          <p className="text-sm"><span className="font-medium">Author:</span> {event.author}</p>
-                        )}
-                        {event.reviewer && (
-                          <p className="text-sm"><span className="font-medium">Reviewer:</span> {event.reviewer}</p>
-                        )}
-                        {event.assignedTo && (
-                          <p className="text-sm"><span className="font-medium">Assigned to:</span> {event.assignedTo}</p>
-                        )}
-                        {event.reason && (
-                          <p className="text-sm text-red-600"><span className="font-medium">Reason:</span> {event.reason}</p>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-1">
-                        {event.tokensStaked && (
-                          <p className="text-sm text-blue-600">
-                            <span className="font-medium">Tokens Staked:</span> {event.tokensStaked} AXON
-                          </p>
-                        )}
-                        {event.tokensEarned && (
-                          <p className="text-sm text-green-600">
-                            <span className="font-medium">Tokens Earned:</span> {event.tokensEarned} AXON
-                          </p>
-                        )}
-                        {event.tokensReleased && (
-                          <p className="text-sm text-green-600">
-                            <span className="font-medium">Tokens Released:</span> {event.tokensReleased} AXON
-                          </p>
-                        )}
-                        {event.tokensSlashed && (
-                          <p className="text-sm text-red-600">
-                            <span className="font-medium">Tokens Slashed:</span> {event.tokensSlashed} AXON
-                          </p>
-                        )}
-                        {event.rating && (
-                          <p className="text-sm">
-                            <span className="font-medium">Rating:</span> {event.rating}/5.0 ⭐
-                          </p>
-                        )}
-                        {event.dueDate && (
-                          <p className="text-sm text-orange-600">
-                            <span className="font-medium">Due:</span> {new Date(event.dueDate).toLocaleDateString()}
-                          </p>
-                        )}
+                      {/* Abstract */}
+                      <div className="mt-4">
+                        <p className="text-sm">
+                          <span className="font-medium">Abstract:</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
+                          {manuscript.abstract}
+                        </p>
                       </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
-
-        {filteredEvents.length === 0 && (
-          <Card className="text-center py-12">
-            <CardContent>
-              <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No activities found</h3>
-              <p className="text-muted-foreground">Try adjusting your search or filter criteria</p>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

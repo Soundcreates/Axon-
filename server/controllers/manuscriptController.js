@@ -94,14 +94,27 @@ const getManuscripts = async (req, res) => {
         if (status) filter.status = status;
         if (category) filter.category = category;
 
-        // For authors: show their own manuscripts
-        // For reviewers: show manuscripts assigned to them
-        if (req.user.role === 'author') {
-            filter.author = req.user._id;
-        } else if (req.user.role === 'reviewer') {
-            filter['reviewers.reviewer'] = req.user._id;
-        }
+        // Debug logging
+        console.log('User requesting manuscripts:', {
+            userId: req.user._id,
+            userRole: req.user.role,
+            userEmail: req.user.email
+        });
 
+        // For now, show all manuscripts for debugging
+        // Later we can add role-based filtering back
+        // if (req.user.role === 'author') {
+        //     filter.author = req.user._id;
+        // } else if (req.user.role === 'reviewer') {
+        //     filter['reviewers.reviewer'] = req.user._id;
+        // }
+
+        console.log('Filter being used:', filter);
+        
+        // Check total manuscripts in database without any filter
+        const totalInDB = await Manuscript.countDocuments({});
+        console.log('Total manuscripts in entire database:', totalInDB);
+        
         const manuscripts = await Manuscript.find(filter)
             .populate('author', 'name email')
             .populate('reviewers.reviewer', 'name email reputation')
@@ -110,6 +123,9 @@ const getManuscripts = async (req, res) => {
             .skip((page - 1) * limit);
 
         const total = await Manuscript.countDocuments(filter);
+        
+        console.log('Found manuscripts:', manuscripts.length);
+        console.log('Total manuscripts in DB:', total);
 
         res.status(200).json({
             success: true,
