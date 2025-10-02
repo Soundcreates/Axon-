@@ -96,18 +96,38 @@ const getManuscripts = async (req, res) => {
 
         // Debug logging
         console.log('User requesting manuscripts:', {
-            userId: req.user._id,
+            userId: req.user.id,
             userRole: req.user.role,
             userEmail: req.user.email
         });
 
-        // For now, show all manuscripts for debugging
-        // Later we can add role-based filtering back
-        // if (req.user.role === 'author') {
-        //     filter.author = req.user._id;
-        // } else if (req.user.role === 'reviewer') {
-        //     filter['reviewers.reviewer'] = req.user._id;
-        // }
+        // Role-based filtering
+        if (req.user.role === 'author') {
+            // Authors only see their own manuscripts
+            filter.author = req.user.id;
+            console.log('Filtering for author - showing only manuscripts by user:', req.user.id);
+            console.log('Author ObjectId type:', typeof req.user.id);
+        } else if (req.user.role === 'reviewer') {
+            // Reviewers only see manuscripts assigned to them
+            filter['reviewers.reviewer'] = req.user.id;
+            console.log('Filtering for reviewer - showing only manuscripts assigned to user:', req.user.id);
+        } else {
+            // For admin or other roles, show all manuscripts
+            console.log('User has admin/other role - showing all manuscripts');
+        }
+
+        // TEMPORARY: Also check what manuscripts exist for this author
+        if (req.user.role === 'author') {
+            const allUserManuscripts = await Manuscript.find({ author: req.user.id });
+            console.log('All manuscripts by this author:', allUserManuscripts.length);
+            if (allUserManuscripts.length > 0) {
+                console.log('Sample manuscript:', {
+                    id: allUserManuscripts[0]._id,
+                    title: allUserManuscripts[0].title,
+                    author: allUserManuscripts[0].author
+                });
+            }
+        }
 
         console.log('Filter being used:', filter);
         
@@ -163,7 +183,7 @@ const assignReviewers = async (req, res) => {
         }
 
         // Check if user is the author
-        if (manuscript.author.toString() !== req.user._id.toString()) {
+        if (manuscript.author.toString() !== req.user.id.toString()) {
             return res.status(403).json({
                 success: false,
                 message: 'Only the author can assign reviewers'
@@ -241,9 +261,9 @@ const getManuscriptDetails = async (req, res) => {
         }
 
         // Check access permissions
-        const isAuthor = manuscript.author._id.toString() === req.user._id.toString();
+        const isAuthor = manuscript.author._id.toString() === req.user.id.toString();
         const isAssignedReviewer = manuscript.reviewers.some(
-            r => r.reviewer._id.toString() === req.user._id.toString()
+            r => r.reviewer._id.toString() === req.user.id.toString()
         );
 
         if (!isAuthor && !isAssignedReviewer && req.user.role !== 'admin') {

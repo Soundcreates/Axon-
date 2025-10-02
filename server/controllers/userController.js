@@ -19,7 +19,7 @@ export const getUserProfile = async (req,res) => {
       return res.status(404).json({message: "User not found"});
     }
 
-    return res.status(200).json({user: foundUser});
+    return res.status(200).json({success: true, user: foundUser});
   }catch(err){
     console.log("Error in getUserProfile", err);
     return res.status(500).json({message: "Internal Server Error in getUserProfile"});

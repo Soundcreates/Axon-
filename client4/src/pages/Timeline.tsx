@@ -66,32 +66,53 @@ const Timeline = () => {
   const [manuscripts, setManuscripts] = useState<Manuscript[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
-  //fetching manuscripts from backend
+  //fetching user info and manuscripts from backend
   useEffect(() => {
-    const fetchManuscripts = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await server.get("/manuscript/getManuscripts", {
+
+        // First, get user information to determine role
+        console.log("Fetching user profile...");
+        const userResponse = await server.get("/user/profile", {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`
           }
         });
 
-        console.log("Timeline API Response:", response.data);
+        console.log("User profile response:", userResponse.data);
+
+        if (userResponse.data.success) {
+          setUserRole(userResponse.data.user.role);
+          console.log("User role:", userResponse.data.user.role);
+          console.log("User ID:", userResponse.data.user._id);
+        } else {
+          console.log("Failed to get user profile:", userResponse.data);
+        }
+
+        // Then fetch manuscripts based on user role
+        const manuscriptResponse = await server.get("/manuscript/getManuscripts", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
+
+        console.log("Timeline API Response:", manuscriptResponse.data);
         console.log("Token exists:", localStorage.getItem("token") ? "Yes" : "No");
 
-        if (response.data.success) {
-          console.log("Manuscripts found:", response.data.data?.manuscripts?.length || 0);
-          setManuscripts(response.data.data.manuscripts || []);
+        if (manuscriptResponse.data.success) {
+          console.log("Manuscripts found:", manuscriptResponse.data.data?.manuscripts?.length || 0);
+          setManuscripts(manuscriptResponse.data.data.manuscripts || []);
         } else {
           console.log("API returned success: false");
           setError("Failed to fetch manuscripts");
         }
       } catch (err: any) {
-        console.error("Error fetching manuscripts:", err);
-        setError(err.response?.data?.message || "Failed to fetch manuscripts");
+        console.error("Error fetching data:", err);
+        setError(err.response?.data?.message || "Failed to fetch data");
         // Fallback to empty array on error
         setManuscripts([]);
       } finally {
@@ -99,7 +120,7 @@ const Timeline = () => {
       }
     };
 
-    fetchManuscripts();
+    fetchData();
   }, []);
 
 
@@ -165,6 +186,25 @@ const Timeline = () => {
           </div>
         </div>
 
+        {/* Role-based viewing indicator */}
+        {userRole && (
+          <Card className="mb-6 border-l-4 border-l-blue-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium">
+                  {userRole === 'author' && "Viewing your submitted manuscripts"}
+                  {userRole === 'reviewer' && "Viewing manuscripts assigned to you for review"}
+                  {userRole !== 'author' && userRole !== 'reviewer' && "Viewing all manuscripts (Admin view)"}
+                </span>
+                <Badge variant="outline" className="ml-2">
+                  {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filters */}
         <Card className="mb-6">
           <CardContent className="p-4">
@@ -211,7 +251,22 @@ const Timeline = () => {
             </Card>
           ) : filteredManuscripts.length === 0 ? (
             <Card className="p-6">
-              <div className="text-center text-muted-foreground">No manuscripts found</div>
+              <div className="text-center text-muted-foreground">
+                {userRole === 'author' && "You haven't submitted any manuscripts yet"}
+                {userRole === 'reviewer' && "No manuscripts have been assigned to you for review"}
+                {userRole !== 'author' && userRole !== 'reviewer' && "No manuscripts found"}
+                {!userRole && "No manuscripts found"}
+              </div>
+              {userRole === 'author' && (
+                <div className="text-center mt-4">
+                  <Link to="/submission">
+                    <Button variant="outline">
+                      <FileText className="h-4 w-4 mr-2" />
+                      Submit Your First Manuscript
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </Card>
           ) : (
             filteredManuscripts.map((manuscript) => (
@@ -250,12 +305,19 @@ const Timeline = () => {
 
                       <div className="grid md:grid-cols-2 gap-4 mt-4">
                         <div className="space-y-1">
-                          <p className="text-sm"><span className="font-medium">Author:</span> {manuscript.author.name}</p>
+                          {userRole !== 'author' && (
+                            <p className="text-sm"><span className="font-medium">Author:</span> {manuscript.author.name}</p>
+                          )}
                           <p className="text-sm"><span className="font-medium">Category:</span> {manuscript.category}</p>
                           <p className="text-sm"><span className="font-medium">Keywords:</span> {manuscript.keywords.join(', ')}</p>
                           {manuscript.reviewers.length > 0 && (
                             <p className="text-sm">
                               <span className="font-medium">Reviewers:</span> {manuscript.reviewers.length} assigned
+                            </p>
+                          )}
+                          {userRole === 'reviewer' && (
+                            <p className="text-sm text-blue-600">
+                              <span className="font-medium">Your Role:</span> Assigned Reviewer
                             </p>
                           )}
                         </div>

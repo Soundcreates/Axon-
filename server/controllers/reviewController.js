@@ -19,7 +19,7 @@ const submitReview = async (req, res) => {
         }
 
         const isAssignedReviewer = manuscript.reviewers.some(
-            r => r.reviewer.toString() === req.user._id.toString()
+            r => r.reviewer.toString() === req.user.id.toString()
         );
 
         if (!isAssignedReviewer) {
@@ -32,7 +32,7 @@ const submitReview = async (req, res) => {
         // Check if review already exists
         const existingReview = await Review.findOne({
             manuscript: manuscriptId,
-            reviewer: req.user._id
+            reviewer: req.user.id
         });
 
         if (existingReview) {
@@ -45,7 +45,7 @@ const submitReview = async (req, res) => {
         // Create review document for IPFS
         const reviewDocument = {
             manuscriptId,
-            reviewer: req.user._id,
+            reviewer: req.user.id,
             scores,
             comments,
             recommendation,
@@ -62,7 +62,7 @@ const submitReview = async (req, res) => {
         // Create review record
         const review = new Review({
             manuscript: manuscriptId,
-            reviewer: req.user._id,
+            reviewer: req.user.id,
             reviewHash,
             scores,
             comments,
@@ -77,7 +77,7 @@ const submitReview = async (req, res) => {
         
         // Update reviewer status
         const reviewerIndex = manuscript.reviewers.findIndex(
-            r => r.reviewer.toString() === req.user._id.toString()
+            r => r.reviewer.toString() === req.user.id.toString()
         );
         manuscript.reviewers[reviewerIndex].status = 'completed';
 
@@ -90,7 +90,7 @@ const submitReview = async (req, res) => {
         await manuscript.save();
 
         // Update reviewer reputation
-        await User.findByIdAndUpdate(req.user._id, {
+        await User.findByIdAndUpdate(req.user.id, {
             $inc: { reputation: 10 }
         });
 
@@ -147,9 +147,9 @@ const getReviews = async (req, res) => {
         }
 
         // Check access permissions
-        const isAuthor = manuscript.author.toString() === req.user._id.toString();
+        const isAuthor = manuscript.author.toString() === req.user.id.toString();
         const isAssignedReviewer = manuscript.reviewers.some(
-            r => r.reviewer.toString() === req.user._id.toString()
+            r => r.reviewer.toString() === req.user.id.toString()
         );
 
         if (!isAuthor && !isAssignedReviewer) {
@@ -180,7 +180,7 @@ const getReviews = async (req, res) => {
 const getMyReviews = async (req, res) => {
     try {
         const { status, page = 1, limit = 10 } = req.query;
-        const filter = { reviewer: req.user._id };
+        const filter = { reviewer: req.user.id };
 
         const reviews = await Review.find(filter)
             .populate({
