@@ -1,6 +1,7 @@
 import Manuscript from '../models/manuscriptModel.js';
 import User from '../models/userModel.js';
 import ipfsService from '../services/ipfsService.js';
+import mongoose from 'mongoose';
 
 const submitManuscript = async (req, res) => {
   try {
@@ -11,30 +12,63 @@ const submitManuscript = async (req, res) => {
       category,
       ipfsHash,
       selectedReviewers,
-      reviewerCount,
-      priority,
-      stakingCost,
-      transactionHash,
-      blockchainId
-    } = req.body;
-
-    const userId = req.user.id;
-
-    const manuscript = await Manuscript.create({
-      title,
-      description,
-      keywords,
-      category,
-      ipfsHash,
-      author: userId,
-      reviewers: selectedReviewers,
-      reviewerCount,
       priority,
       stakingCost,
       transactionHash,
       blockchainId,
+      deadline
+    } = req.body;
+
+    //logging the manuscript data for debugging
+    console.log("Received Manuscript data: ");
+    console.log("Title: ", title);
+    console.log("Description: ", description);
+    console.log("Keywords: ", keywords);
+    console.log("Category: ", category);
+    console.log("IPFS Hash: ", ipfsHash);
+    console.log("Selected Reviewers: ", selectedReviewers);
+    console.log("Priority: ", priority);
+    console.log("Staking Cost: ", stakingCost);
+    console.log("Transaction Hash: ", transactionHash);
+    console.log("Blockchain ID: ", blockchainId);
+    console.log("Deadline: ", deadline);
+
+    const userId = req.user.id;
+
+    // Convert keywords string to array if it's a string
+    const keywordsArray = typeof keywords === 'string' 
+      ? keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
+      : keywords;
+
+    // Convert selectedReviewers array to proper format and validate ObjectIds
+    const reviewersArray = selectedReviewers.map(reviewerId => {
+      // Validate if it's a valid ObjectId
+      if (!mongoose.Types.ObjectId.isValid(reviewerId)) {
+        throw new Error(`Invalid reviewer ID: ${reviewerId}. Must be a valid MongoDB ObjectId.`);
+      }
+      return {
+        reviewer: reviewerId,
+        assignedAt: new Date(),
+        status: 'assigned'
+      };
+    });
+
+    const manuscript = await Manuscript.create({
+      title,
+      abstract: description,  // Map description to abstract
+      keywords: keywordsArray,  // Use processed keywords array
+      category,
+      contentHash: ipfsHash,  // Map ipfsHash to contentHash
+      author: userId,
+      reviewers: reviewersArray,  // Use properly formatted reviewers array
+      deadline: new Date(deadline),  // Add deadline field
+      blockchain: {  // Structure blockchain data properly
+        manuscriptId: ipfsHash,  // Use IPFS hash as manuscript ID
+        transactionHash,
+        blockNumber: blockchainId
+      },
       status: 'submitted',
-      submissionDate: new Date()
+      submittedAt: new Date()
     });
 
     res.status(200).json({

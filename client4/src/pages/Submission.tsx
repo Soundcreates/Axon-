@@ -39,9 +39,9 @@ interface FormData {
   keywords: string;
   category: string;
   file: File | null;
-  reviewerCount: number;
   priority: "standard" | "urgent";
   selectedReviewers: string[];
+  deadline: string;
 }
 
 const Submission = () => {
@@ -55,9 +55,9 @@ const Submission = () => {
     keywords: "",
     category: "",
     file: null as File | null,
-    reviewerCount: 3,
     priority: "standard",
-    selectedReviewers: [] as string[]
+    selectedReviewers: [] as string[],
+    deadline: ""
   });
 
   const [step, setStep] = useState(1);
@@ -86,7 +86,11 @@ const Submission = () => {
   useEffect(() => {
     const fetchReviewers = async () => {
       try {
-        const response = await server.get('/user/reviewers');
+        const response = await server.get('/user/reviewers', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
         if (response.data.reviewers.length === 0) console.log("There are no reviewers");
         setReviewers(response.data.reviewers || []);
         setFilteredReviewers(response.data.reviewers || []);
@@ -94,10 +98,10 @@ const Submission = () => {
         console.error("Error fetching reviewers:", error);
         // Fallback mock data for now
         const mockReviewers = [
-          { _id: "1", name: "Dr. John Smith", email: "john@university.edu", expertise: ["Machine Learning", "AI"], rep: 95 },
-          { _id: "2", name: "Dr. Sarah Wilson", email: "sarah@tech.edu", expertise: ["Computer Vision"], rep: 88 },
-          { _id: "3", name: "Dr. Mike Johnson", email: "mike@research.org", expertise: ["NLP", "Deep Learning"], rep: 92 },
-          { _id: "4", name: "Dr. Emily Chen", email: "emily@ai.institute", expertise: ["Robotics", "ML"], rep: 90 }
+          { _id: "507f1f77bcf86cd799439011", name: "Dr. John Smith", email: "john@university.edu", expertise: ["Machine Learning", "AI"], rep: 95 },
+          { _id: "507f1f77bcf86cd799439012", name: "Dr. Sarah Wilson", email: "sarah@tech.edu", expertise: ["Computer Vision"], rep: 88 },
+          { _id: "507f1f77bcf86cd799439013", name: "Dr. Mike Johnson", email: "mike@research.org", expertise: ["NLP", "Deep Learning"], rep: 92 },
+          { _id: "507f1f77bcf86cd799439014", name: "Dr. Emily Chen", email: "emily@ai.institute", expertise: ["Robotics", "ML"], rep: 90 }
         ];
         setReviewers(mockReviewers);
         setFilteredReviewers(mockReviewers);
@@ -111,9 +115,9 @@ const Submission = () => {
 
   const calculateStakingCost = () => {
     const baseCost = 50;
-    const reviewerMultiplier = formData.reviewerCount * 15;
     const priorityMultiplier = formData.priority === "urgent" ? 2 : 1;
-    return (baseCost + reviewerMultiplier) * priorityMultiplier;
+    const reviewerCost = formData.selectedReviewers.length * 15;
+    return (baseCost * priorityMultiplier) + reviewerCost;
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,11 +270,11 @@ const Submission = () => {
             category: formData.category,
             ipfsHash: uploadFileHash,
             selectedReviewers: formData.selectedReviewers,
-            reviewerCount: formData.reviewerCount,
             priority: formData.priority,
             stakingCost: calculateStakingCost(),
             transactionHash: contractTx.hash,
-            blockchainId: receipt.blockNumber || "pending"
+            blockchainId: receipt.blockNumber || "pending",
+            deadline: formData.deadline
           };
 
           console.log("Manuscript data to be saved:", manuscriptData);
@@ -348,11 +352,11 @@ const Submission = () => {
   const canProceedToNextStep = () => {
     switch (step) {
       case 1:
-        return formData.title.trim() !== "" && formData.description.trim() !== "" && formData.category !== "";
+        return formData.title.trim() !== "" && formData.description.trim() !== "" && formData.category !== "" && formData.deadline !== "";
       case 2:
         return formData.file !== null;
       case 3:
-        return formData.selectedReviewers.length >= formData.reviewerCount;
+        return formData.selectedReviewers.length >= 1;
       case 4:
         return true;
       default:
@@ -459,6 +463,18 @@ const Submission = () => {
                     />
                   </div>
                 </div>
+                <div className="flex justify-center">
+                  <div className="space-y-2 w-full max-w-md">
+                    <Label htmlFor="deadline">Deadline *</Label>
+                    <Input
+                      id="deadline"
+                      type="date"
+                      value={formData.deadline}
+                      onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                    />
+                  </div>
+                </div>
+
               </CardContent>
             </Card>
           )}
@@ -555,7 +571,7 @@ const Submission = () => {
                   <div>
                     <h3 className="text-lg font-medium">Select Reviewers</h3>
                     <p className="text-sm text-muted-foreground">
-                      Choose {formData.reviewerCount} reviewers for your manuscript
+                      Choose reviewers for your manuscript
                     </p>
                   </div>
                   <Button variant="outline" onClick={filterReviewers}>
@@ -602,41 +618,11 @@ const Submission = () => {
                 </div>
 
                 <div className="text-center text-sm text-muted-foreground">
-                  Selected: {formData.selectedReviewers.length} / {formData.reviewerCount} reviewers
+                  Selected: {formData.selectedReviewers.length} reviewers
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-base font-medium">Number of Reviewers</Label>
-                      <p className="text-sm text-muted-foreground mb-3">More reviewers provide better feedback but cost more tokens</p>
-                      <div className="space-y-2">
-                        {[2, 3, 4, 5].map((count) => (
-                          <div key={count} className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id={`reviewers-${count}`}
-                              name="reviewers"
-                              value={count}
-                              checked={formData.reviewerCount === count}
-                              onChange={() => {
-                                setFormData({
-                                  ...formData,
-                                  reviewerCount: count,
-                                  selectedReviewers: formData.selectedReviewers.slice(0, count)
-                                });
-                              }}
-                            />
-                            <label htmlFor={`reviewers-${count}`} className="text-sm">
-                              {count} reviewers ({50 + count * 15} AXON tokens)
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
+                <div className="flex justify-center">
+                  <div className="space-y-4 max-w-md">
                     <div>
                       <Label className="text-base font-medium">Priority Level</Label>
                       <p className="text-sm text-muted-foreground mb-3">Higher priority gets faster review assignment</p>
@@ -707,6 +693,7 @@ const Submission = () => {
                       <p><span className="font-medium">Title:</span> {formData.title}</p>
                       <p><span className="font-medium">Category:</span> {formData.category}</p>
                       <p><span className="font-medium">Keywords:</span> {formData.keywords || "None provided"}</p>
+                      <p><span className="font-medium">Deadline:</span> {formData.deadline}</p>
                       <p><span className="font-medium">File:</span> {formData.file?.name}</p>
                       <div>
                         <span className="font-medium">Description:</span>
@@ -720,7 +707,7 @@ const Submission = () => {
                   <div className="space-y-3">
                     <h3 className="font-medium">Review Configuration</h3>
                     <div className="space-y-2 text-sm">
-                      <p><span className="font-medium">Reviewers:</span> {formData.reviewerCount}</p>
+                      <p><span className="font-medium">Reviewers:</span> {formData.selectedReviewers.length}</p>
                       <p><span className="font-medium">Priority:</span> {formData.priority}</p>
                       <p><span className="font-medium">Tokens to Stake:</span> {calculateStakingCost()} AXON</p>
                       <div>

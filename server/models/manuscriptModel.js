@@ -3,13 +3,13 @@ import mongoose from 'mongoose';
 const manuscriptSchema = new mongoose.Schema({
     title: {
         type: String,
-     
+        required: true,
         trim: true,
         maxlength: 200
     },
     abstract: {
         type: String,
-       
+        required: true,
         maxlength: 1000
     },
     keywords: [{
@@ -18,13 +18,13 @@ const manuscriptSchema = new mongoose.Schema({
     }],
     category: {
         type: String,
-
-        enum: ['Computer Science', 'Biology', 'Physics', 'Chemistry', 'Mathematics', 'Medicine', 'Engineering', 'Other']
+        required: true,
+        enum: ['Machine Learning', 'Computer Vision', 'Natural Language Processing', 'Robotics', 'Quantum Computing', 'Bioinformatics', 'Cryptography', 'Software Engineering']
     },
     author: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-
+        required: true
     },
     coAuthors: [{
         name: String,
