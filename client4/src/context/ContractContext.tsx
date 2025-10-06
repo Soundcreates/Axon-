@@ -13,8 +13,8 @@ import { useWallet } from "./WalletContext";
 import PeerReviewABI from "../contractData/peerReview.json";
 import AxonTokenABI from "../contractData/axonToken.json";
 
-const PEER_REVIEW_ADDRESS = "0x50CACa4A67c50C371244C34886481fc16561DFF2";
-const AXON_TOKEN_ADDRESS = "0x2d9e22cea1a347574aDf3029dbaEc5C4499e00C5";
+const PEER_REVIEW_ADDRESS = "0x3225aD9A3c6e9886DB271aBBcdC62637A593B9fb";
+const AXON_TOKEN_ADDRESS = "0xB8DB97bD61e9b8b31FaAFe7d0E51aD26eB043F42";
 
 // Type for the manuscript
 type Manuscript = {
@@ -41,7 +41,8 @@ interface IContractContext extends IContractState {
   // PeerReview Contract Functions
   peerReview_submitManuscript: (
     manuscriptHash: string,
-    title: string
+    title: string,
+    stakingAmount: bigint
   ) => Promise<ethers.ContractTransactionResponse>;
   peerReview_assignReviewers: (
     manuscriptId: string,
@@ -58,7 +59,12 @@ interface IContractContext extends IContractState {
 
   // AxonToken Contract Functions
   axonToken_balanceOf: (address: string) => Promise<bigint>;
-  axonToken_approve: (spender: string, amount: bigint) => Promise<void>;
+  axonToken_approve: (spender: string, amount: bigint) => Promise<ethers.ContractTransactionResponse>;
+  axonToken_allowance: (owner: string, spender: string) => Promise<bigint>;
+  axonToken_giveWelcomeTokens: () => Promise<ethers.ContractTransactionResponse>;
+  //addresses
+  peerReviewAddress: string;
+  axonTokenAddress: string;
 }
 
 // Create the context
@@ -137,13 +143,16 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
   };
 
   // Wrapper Functions for Smart Contract Methods
+  const peerReviewAddress = PEER_REVIEW_ADDRESS; // Exported for use in other components
+
   const peerReview_submitManuscript = useCallback(
-    async (manuscriptHash: string, title: string): Promise<ethers.ContractTransactionResponse> => {
+    async (manuscriptHash: string, title: string, stakingAmount: bigint): Promise<ethers.ContractTransactionResponse> => {
       if (!state.peerReviewContract) throw new Error("Contract not initialized");
 
       try {
+
         setState((s) => ({ ...s, isLoading: true, error: null }));
-        const tx = await state.peerReviewContract.submitManuscript(manuscriptHash, title);
+        const tx = await state.peerReviewContract.submitManuscript(manuscriptHash, title, stakingAmount);
         console.log("Transaction submitted:", tx);
         return tx;
       } catch (e: any) {
@@ -244,15 +253,58 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
   );
 
   const axonToken_approve = useCallback(
-    async (spender: string, amount: bigint) => {
+    async (spender: string, amount: bigint): Promise<ethers.ContractTransactionResponse> => {
       if (!state.axonTokenContract) throw new Error("Token contract not initialized");
-      await handleTransaction(
-        state.axonTokenContract.approve(spender, amount)
-      );
+
+      try {
+        setState((s) => ({ ...s, isLoading: true, error: null }));
+        const tx = await state.axonTokenContract.approve(spender, amount);
+        console.log("Approve transaction submitted:", tx);
+        return tx;
+      } catch (e: any) {
+        const errorMessage = e.reason || e.message || "Approve transaction failed";
+        console.error("Approve transaction failed:", errorMessage);
+        setState((s) => ({ ...s, error: errorMessage }));
+        throw new Error(errorMessage);
+      } finally {
+        setState((s) => ({ ...s, isLoading: false }));
+      }
     },
     [state.axonTokenContract]
   );
 
+  const axonToken_allowance = useCallback(
+    async (owner: string, spender: string): Promise<bigint> => {
+      if (!state.axonTokenContract) throw new Error("Token contract not initialized");
+      return await state.axonTokenContract.allowance(owner, spender);
+    },
+    [state.axonTokenContract]
+  );
+
+  const axonToken_giveWelcomeTokens = useCallback(
+    async (): Promise<ethers.ContractTransactionResponse> => {
+      if (!state.axonTokenContract) throw new Error("Token contract not initialized");
+
+      try {
+        setState((s) => ({ ...s, isLoading: true, error: null }));
+        const tx = await state.axonTokenContract.giveWelcomeTokens();
+        console.log("Welcome tokens transaction submitted:", tx);
+        return tx;
+      } catch (e: any) {
+        const errorMessage = e.reason || e.message || "Give welcome tokens failed";
+        console.error("Give welcome tokens failed:", errorMessage);
+        setState((s) => ({ ...s, error: errorMessage }));
+        throw new Error(errorMessage);
+      } finally {
+        setState((s) => ({ ...s, isLoading: false }));
+      }
+    },
+    [state.axonTokenContract]
+  );
+
+  const axonTokenAddress = AXON_TOKEN_ADDRESS; // Exported for use in other components
+
+  // Context value
   const contextValue: IContractContext = {
     ...state,
     peerReview_submitManuscript,
@@ -264,6 +316,12 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     getManuscriptDetails,
     axonToken_balanceOf,
     axonToken_approve,
+    axonToken_allowance,
+    axonToken_giveWelcomeTokens,
+
+    //addresses
+    peerReviewAddress,
+    axonTokenAddress,
   };
 
   return (

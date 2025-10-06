@@ -24,6 +24,7 @@ import { useContracts } from "@/context/ContractContext";
 import { useWallet } from "@/context/WalletContext";
 import { ContractDebug } from "@/components/debug/ContractDebug";
 import { toast } from "sonner";
+import { ethers } from "ethers";
 
 interface Reviewer {
   _id: string;
@@ -47,7 +48,7 @@ interface FormData {
 const Submission = () => {
 
   const contractContext = useContracts();
-  const { peerReview_submitManuscript } = contractContext;
+  const { peerReview_submitManuscript, axonToken_giveWelcomeTokens } = contractContext;
   const { status: walletStatus, account, connectWallet } = useWallet();
   const [formData, setFormData] = useState<FormData>({
     title: "",
@@ -67,6 +68,7 @@ const Submission = () => {
   const [isDragging, setIsDragging] = useState(false);
   const navigate = useNavigate();
   const [fileHash, setFileHash] = useState<string>("");
+  const [stakingAmount, setStakingAmount] = useState<number>(50);
 
 
 
@@ -113,12 +115,13 @@ const Submission = () => {
     }
   }, [step]);
 
-  const calculateStakingCost = () => {
+  useEffect(() => {
     const baseCost = 50;
     const priorityMultiplier = formData.priority === "urgent" ? 2 : 1;
     const reviewerCost = formData.selectedReviewers.length * 15;
-    return (baseCost * priorityMultiplier) + reviewerCost;
-  };
+    const newStakingAmount = (baseCost * priorityMultiplier + reviewerCost);
+    setStakingAmount(newStakingAmount);
+  }, [formData.priority, formData.selectedReviewers.length]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -152,6 +155,34 @@ const Submission = () => {
       : [...formData.selectedReviewers, reviewerId];
 
     setFormData({ ...formData, selectedReviewers: updatedSelection });
+  };
+
+  const handleGetWelcomeTokens = async () => {
+    if (!axonToken_giveWelcomeTokens || walletStatus !== "connected") {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      console.log("Getting welcome tokens...");
+      const tx = await axonToken_giveWelcomeTokens();
+      console.log("Welcome tokens transaction submitted:", tx.hash);
+
+      toast.success("Getting welcome tokens... Please wait for confirmation.");
+
+      await tx.wait();
+      toast.success("Welcome tokens received! You can now submit manuscripts.");
+
+      // Refresh the page or update state to reflect new balance
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Failed to get welcome tokens:", error);
+      if (error.message?.includes("Already received")) {
+        toast.error("You have already received welcome tokens");
+      } else {
+        toast.error(`Failed to get welcome tokens: ${error.message}`);
+      }
+    }
   };
 
   const filterReviewers = () => {
@@ -220,11 +251,79 @@ const Submission = () => {
 
           console.log("Submitting to blockchain..");
 
+          const stakingAmountToWei = ethers.parseEther(stakingAmount.toString());
+
           // Check wallet connection
           if (walletStatus !== "connected" || !account) {
             throw new Error("Please connect your wallet to submit a manuscript.");
           }
 
+          // Check if we have the required contract functions
+          if (!contractContext.axonToken_allowance || !contractContext.axonToken_approve) {
+            throw new Error("Token contract functions not available");
+          }
+
+          if (!contractContext.peerReviewContract?.target) {
+            throw new Error("PeerReview contract address not available");
+          }
+
+          // Check user token balance first
+          const userBalance = await contractContext.axonToken_balanceOf(account);
+          const balanceFormatted = ethers.formatEther(userBalance.toString());
+          const requiredFormatted = ethers.formatEther(stakingAmountToWei.toString());
+
+          console.log("User balance:", balanceFormatted, "AXON");
+          console.log("Required amount:", requiredFormatted, "AXON");
+
+          if (userBalance < stakingAmountToWei) {
+            // If user has 0 balance, suggest getting welcome tokens
+            if (userBalance === 0n) {
+              const getTokensMessage = `You have no AXON tokens. Click the "Get Test Tokens" button to receive some.`;
+              throw new Error(getTokensMessage);
+            } else {
+              throw new Error(`Insufficient token balance. You need ${requiredFormatted} AXON but have ${balanceFormatted} AXON`);
+            }
+          }
+
+          //working on approving the token transfer first
+          console.log("Allowing the process to transfer token successfully");
+
+          // Check current allowance (owner, spender)
+          const currentAllowance = await contractContext.axonToken_allowance(
+            account,
+            contractContext.peerReviewContract.target as string
+          );
+
+          console.log("Current allowance:", ethers.formatEther(currentAllowance.toString()));
+          console.log("Required Amount:", ethers.formatEther(stakingAmountToWei.toString()));
+
+          // Convert BigInt to bigint for comparison
+          const allowanceAsBigint = BigInt(currentAllowance.toString());
+
+          if (allowanceAsBigint < stakingAmountToWei) {
+            console.log("Approving tokens...");
+            try {
+              const approveTx = await contractContext.axonToken_approve(
+                contractContext.peerReviewContract.target as string,
+                stakingAmountToWei
+              );
+              console.log("Approval transaction submitted:", approveTx.hash);
+              await approveTx.wait();
+              console.log("Token approval completed");
+
+              // Re-check allowance after approval
+              const newAllowance = await contractContext.axonToken_allowance(
+                account,
+                contractContext.peerReviewContract.target as string
+              );
+              console.log("New allowance after approval:", ethers.formatEther(newAllowance.toString()));
+            } catch (approveError) {
+              console.error("Token approval failed:", approveError);
+              throw new Error(`Token approval failed: ${approveError.message}`);
+            }
+          } else {
+            console.log("Sufficient allowance already exists");
+          }
           // Add debugging information
           console.log("Contract context:", contractContext);
           console.log("Is contracts loaded:", contractContext.isLoading);
@@ -244,20 +343,57 @@ const Submission = () => {
 
           console.log("About to call peerReview_submitManuscript with:", {
             uploadFileHash,
-            title: formData.title
+            title: formData.title,
+            stakingAmount: ethers.formatEther(stakingAmountToWei.toString())
           });
 
-          const contractTx = await peerReview_submitManuscript(
-            uploadFileHash,
-            formData.title
-          );
+          // Validate parameters before contract call
+          if (!uploadFileHash || uploadFileHash.trim() === "") {
+            throw new Error("Invalid IPFS hash");
+          }
+
+          if (!formData.title || formData.title.trim() === "") {
+            throw new Error("Invalid manuscript title");
+          }
+
+          if (stakingAmountToWei <= 0n) {
+            throw new Error("Invalid staking amount");
+          }
+
+          // Try the contract call with detailed error handling
+          let contractTx;
+          try {
+            console.log("Calling contract submitManuscript function...");
+            contractTx = await peerReview_submitManuscript(
+              uploadFileHash,
+              formData.title,
+              stakingAmountToWei
+            );
+          } catch (contractError: any) {
+            console.error("Contract call failed:", contractError);
+
+            // More specific error handling
+            if (contractError.message?.includes("insufficient funds")) {
+              throw new Error("Insufficient ETH for gas fees");
+            } else if (contractError.message?.includes("execution reverted")) {
+              throw new Error("Contract execution failed. Please check your token balance and allowances.");
+            } else if (contractError.code === 'UNPREDICTABLE_GAS_LIMIT') {
+              throw new Error("Transaction would fail. Possible issues: insufficient tokens, insufficient allowance, or contract error.");
+            } else if (contractError.message?.includes("user rejected")) {
+              throw new Error("Transaction was rejected by user");
+            } else {
+              throw new Error(`Contract call failed: ${contractError.message}`);
+            }
+          }
 
           // Add validation for the transaction result
           if (!contractTx) {
             throw new Error("Transaction failed. Contract function returned undefined.");
           }
 
-          console.log("Contract transaction object:", contractTx); const receipt = await contractTx.wait();
+          console.log("Contract transaction object:", contractTx);
+
+          const receipt = await contractTx.wait();
 
           console.log("Blockchain transaction successful: ", contractTx);
           //saving manuscript details to backend database
@@ -270,8 +406,9 @@ const Submission = () => {
             category: formData.category,
             ipfsHash: uploadFileHash,
             selectedReviewers: formData.selectedReviewers,
+            reviewerCount: formData.selectedReviewers.length,
             priority: formData.priority,
-            stakingCost: calculateStakingCost(),
+            stakingCost: stakingAmount,
             transactionHash: contractTx.hash,
             blockchainId: receipt.blockNumber || "pending",
             deadline: formData.deadline
@@ -368,7 +505,6 @@ const Submission = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10 p-4">
       <div className="max-w-4xl mx-auto">
         {/* Debug Component - Remove this later */}
-        <ContractDebug />
 
         <div className="flex items-center gap-4 mb-8 slide-down">
           <Link to="/dashboard">
@@ -377,6 +513,17 @@ const Submission = () => {
               Back to Dashboard
             </Button>
           </Link>
+          {walletStatus === "connected" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGetWelcomeTokens}
+              className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+            >
+              <Coins className="h-4 w-4 mr-2" />
+              Get Test Tokens
+            </Button>
+          )}
           <div>
             <h1 className="text-3xl font-bold">Submit Manuscript</h1>
             <p className="text-muted-foreground">Submit your research for peer review on the Axon network</p>
@@ -665,7 +812,7 @@ const Submission = () => {
                       <span className="font-medium">Total Staking Cost:</span>
                     </div>
                     <div className="text-xl font-bold text-primary">
-                      {calculateStakingCost()} AXON
+                      {stakingAmount} AXON
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
@@ -709,7 +856,7 @@ const Submission = () => {
                     <div className="space-y-2 text-sm">
                       <p><span className="font-medium">Reviewers:</span> {formData.selectedReviewers.length}</p>
                       <p><span className="font-medium">Priority:</span> {formData.priority}</p>
-                      <p><span className="font-medium">Tokens to Stake:</span> {calculateStakingCost()} AXON</p>
+                      <p><span className="font-medium">Tokens to Stake:</span> {stakingAmount} AXON</p>
                       <div>
                         <span className="font-medium">Selected Reviewers:</span>
                         <div className="mt-1 space-y-1">
@@ -733,7 +880,7 @@ const Submission = () => {
                     <div className="text-sm text-yellow-700">
                       <p className="font-medium">Important Notice:</p>
                       <p className="mt-1">
-                        By submitting, you agree to stake {calculateStakingCost()} AXON tokens. Tokens will be returned upon successful review completion, with potential rewards for high-quality submissions.
+                        By submitting, you agree to stake {stakingAmount} AXON tokens. Tokens will be returned upon successful review completion, with potential rewards for high-quality submissions.
                       </p>
                     </div>
                   </div>
@@ -751,7 +898,7 @@ const Submission = () => {
                   ) : (
                     <>
                       <Coins className="h-4 w-4 mr-2" />
-                      Submit & Stake {calculateStakingCost()} AXON
+                      Submit & Stake {stakingAmount} AXON
                     </>
                   )}
                 </Button>

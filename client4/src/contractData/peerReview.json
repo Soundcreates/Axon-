@@ -1,5 +1,5 @@
 {
-  "address": "0xa800C1B7a1655B39c5a20c5Bf99eA8eaf7086350",
+  "address": "0x3225aD9A3c6e9886DB271aBBcdC62637A593B9fb",
   "abi": [
     {
       "type": "constructor",
@@ -418,6 +418,10 @@
         {
           "type": "string",
           "name": "title"
+        },
+        {
+          "type": "uint256",
+          "name": "_stakingAmount"
         }
       ],
       "outputs": []

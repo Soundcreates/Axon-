@@ -61,10 +61,14 @@ contract PeerReview is Ownable {
   }
 
 
-  function submitManuscript(string calldata manuscriptHash, string memory title) public  {
+  function submitManuscript(string calldata manuscriptHash, string memory title, uint _stakingAmount) public  {
     bytes32 manuscriptId = keccak256(abi.encodePacked(manuscriptHash, msg.sender, block.timestamp)); //this is for the id of manuscript
     
     require(manuscripts[manuscriptId].author == address(0), "Manuscript already exists"); //this checks if the manuscript already exists or not
+  require(_stakingAmount > 0, "Staking amount should be greater than 0");
+  require(axonToken.balanceOf(msg.sender) >= _stakingAmount, "Insufficient token balance to stake");
+  require(axonToken.approve(address(this), _stakingAmount), "Token approval failed");
+  require(axonToken.transferFrom(payable(msg.sender), address(this), _stakingAmount), "Token transfer failed");
 
     Manuscript storage newManuscript = manuscripts[manuscriptId];
     newManuscript.id = manuscriptId;
