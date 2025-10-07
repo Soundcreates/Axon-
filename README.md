@@ -323,21 +323,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **IPFS** for decentralized storage
 - **MongoDB** for data persistence
 
-## 📞 Support
-
-- **Documentation**: [Wiki](https://github.com/your-username/axon/wiki)
-- **Issues**: [GitHub Issues](https://github.com/your-username/axon/issues)
-- **Discord**: [Join our community](https://discord.gg/axon)
-- **Email**: support@axon.review
-
-## 🔮 Roadmap
-
-- [ ] **Q1 2024**: Mobile app development
-- [ ] **Q2 2024**: Advanced AI review assistance
-- [ ] **Q3 2024**: Multi-chain support
-- [ ] **Q4 2024**: Decentralized governance
-- [ ] **Q1 2025**: Institutional partnerships
-
 ---
 
 <div align="center">
