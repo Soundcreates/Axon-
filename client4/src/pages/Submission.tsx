@@ -23,6 +23,7 @@ import { server } from "@/service/backendApi";
 import { useContracts } from "@/context/ContractContext";
 import { useWallet } from "@/context/WalletContext";
 import { ContractDebug } from "@/components/debug/ContractDebug";
+import NetworkConfig from "@/components/NetworkConfig";
 import { toast } from "sonner";
 import { ethers } from "ethers";
 
@@ -32,6 +33,7 @@ interface Reviewer {
   email: string;
   expertise?: string[];
   rep: number;
+  walletAddress: string;
 }
 
 interface FormData {
@@ -48,7 +50,19 @@ interface FormData {
 const Submission = () => {
 
   const contractContext = useContracts();
-  const { peerReview_submitManuscript, axonToken_giveWelcomeTokens } = contractContext;
+
+  //importing the contract functions
+  const {
+    peerReview_submitManuscript,
+    peerReview_assignReviewers,
+    axonToken_giveWelcomeTokens,
+    generateManuscriptId,
+    networkSupported,
+    currentNetwork,
+    error: contractError
+  } = contractContext;
+
+
   const { status: walletStatus, account, connectWallet } = useWallet();
   const [formData, setFormData] = useState<FormData>({
     title: "",
@@ -100,10 +114,10 @@ const Submission = () => {
         console.error("Error fetching reviewers:", error);
         // Fallback mock data for now
         const mockReviewers = [
-          { _id: "507f1f77bcf86cd799439011", name: "Dr. John Smith", email: "john@university.edu", expertise: ["Machine Learning", "AI"], rep: 95 },
-          { _id: "507f1f77bcf86cd799439012", name: "Dr. Sarah Wilson", email: "sarah@tech.edu", expertise: ["Computer Vision"], rep: 88 },
-          { _id: "507f1f77bcf86cd799439013", name: "Dr. Mike Johnson", email: "mike@research.org", expertise: ["NLP", "Deep Learning"], rep: 92 },
-          { _id: "507f1f77bcf86cd799439014", name: "Dr. Emily Chen", email: "emily@ai.institute", expertise: ["Robotics", "ML"], rep: 90 }
+          { _id: "507f1f77bcf86cd799439011", name: "Dr. John Smith", email: "john@university.edu", expertise: ["Machine Learning", "AI"], rep: 95, walletAddress: "0x1234567890123456789012345678901234567890" },
+          { _id: "507f1f77bcf86cd799439012", name: "Dr. Sarah Wilson", email: "sarah@tech.edu", expertise: ["Computer Vision"], rep: 88, walletAddress: "0x2345678901234567890123456789012345678901" },
+          { _id: "507f1f77bcf86cd799439013", name: "Dr. Mike Johnson", email: "mike@research.org", expertise: ["NLP", "Deep Learning"], rep: 92, walletAddress: "0x3456789012345678901234567890123456789012" },
+          { _id: "507f1f77bcf86cd799439014", name: "Dr. Emily Chen", email: "emily@ai.institute", expertise: ["Robotics", "ML"], rep: 90, walletAddress: "0x4567890123456789012345678901234567890123" }
         ];
         setReviewers(mockReviewers);
         setFilteredReviewers(mockReviewers);
@@ -192,6 +206,13 @@ const Submission = () => {
   };
 
   const handleSubmit = async () => {
+
+    //ERC 20 steps to stake / transfer tokens
+    //Step 1- Assign allowance
+    //Step 2- Approve the transaction
+    //Step 3- Transfer the tokens
+    //Note  - the number data type wont work, we must use bigint(amount.toString())
+
     setIsSubmitting(true);
     // TODO: implement main functionality
     if (step === 4) {
@@ -256,6 +277,11 @@ const Submission = () => {
           // Check wallet connection
           if (walletStatus !== "connected" || !account) {
             throw new Error("Please connect your wallet to submit a manuscript.");
+          }
+
+          // Check network support
+          if (!networkSupported) {
+            throw new Error(`Network not supported. Please switch to Sepolia testnet or Hardhat local. Current network: ${currentNetwork || 'Unknown'}. Error: ${contractError || 'Network configuration error'}`);
           }
 
           // Check if we have the required contract functions
@@ -360,6 +386,37 @@ const Submission = () => {
             throw new Error("Invalid staking amount");
           }
 
+          // Generate proper manuscript ID
+          const manuscriptId = generateManuscriptId(uploadFileHash, account);
+          console.log("Generated manuscript ID:", manuscriptId);
+
+          // Assign reviewers to blockchain if we have selected reviewers with wallet addresses
+          if (formData.selectedReviewers.length > 0) {
+            try {
+              // Get reviewer wallet addresses
+              const selectedReviewerObjects = reviewers.filter(reviewer =>
+                formData.selectedReviewers.includes(reviewer._id)
+              );
+
+              const reviewerWalletAddresses = selectedReviewerObjects
+                .filter(reviewer => reviewer.walletAddress)
+                .map(reviewer => reviewer.walletAddress);
+
+              if (reviewerWalletAddresses.length > 0) {
+                console.log("Assigning reviewers to blockchain:", reviewerWalletAddresses);
+                await peerReview_assignReviewers(manuscriptId, reviewerWalletAddresses);
+                console.log("Reviewers assigned to blockchain successfully");
+              } else {
+                console.log("No reviewer wallet addresses available for blockchain assignment");
+              }
+            } catch (assignError: any) {
+              console.error("Failed to assign reviewers to blockchain:", assignError);
+              toast.warning("Manuscript submitted but reviewer assignment to blockchain failed: " + assignError.message);
+            }
+          }
+
+
+
           // Try the contract call with detailed error handling
           let contractTx;
           try {
@@ -405,12 +462,14 @@ const Submission = () => {
             keywords: formData.keywords,
             category: formData.category,
             ipfsHash: uploadFileHash,
+            contentHash: uploadFileHash, // For blockchain compatibility
             selectedReviewers: formData.selectedReviewers,
             reviewerCount: formData.selectedReviewers.length,
             priority: formData.priority,
             stakingCost: stakingAmount,
             transactionHash: contractTx.hash,
             blockchainId: receipt.blockNumber || "pending",
+            manuscriptId: manuscriptId, // Add the generated manuscript ID
             deadline: formData.deadline
           };
 
@@ -524,10 +583,23 @@ const Submission = () => {
               Get Test Tokens
             </Button>
           )}
+          {walletStatus === "connected" && (
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${networkSupported
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
+              }`}>
+              {networkSupported ? `Connected to ${currentNetwork}` : "Unsupported Network"}
+            </div>
+          )}
           <div>
             <h1 className="text-3xl font-bold">Submit Manuscript</h1>
             <p className="text-muted-foreground">Submit your research for peer review on the Axon network</p>
           </div>
+        </div>
+
+        {/* Network Configuration */}
+        <div className="mb-6">
+          <NetworkConfig />
         </div>
 
         {/* Progress Steps */}

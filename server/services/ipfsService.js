@@ -62,4 +62,48 @@ const uploadFile = async (file) => {
   }
 };
 
+const fetchDocument = async (contentHash) => {
+  try {
+    console.log("Fetching document from IPFS with hash:", contentHash);
+    
+    // Construct Pinata gateway URL
+    const pinataGateway = process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud";
+    const documentUrl = `${pinataGateway}/ipfs/${contentHash}`;
+    
+    console.log("Document URL:", documentUrl);
+    
+    // Test if the document is accessible
+    const response = await fetch(documentUrl, { method: 'HEAD' });
+    
+    if (response.ok) {
+      console.log("Document is accessible");
+      return {
+        success: true,
+        documentUrl: documentUrl,
+        accessible: true,
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length')
+      };
+    } else {
+      console.log("Document not accessible, status:", response.status);
+      return {
+        success: false,
+        documentUrl: documentUrl,
+        accessible: false,
+        status: response.status,
+        error: `Document not accessible: ${response.status}`
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching document from IPFS:", error);
+    return {
+      success: false,
+      accessible: false,
+      error: error.message
+    };
+  }
+};
+
+export { uploadFile, fetchDocument };
 export default uploadFile;

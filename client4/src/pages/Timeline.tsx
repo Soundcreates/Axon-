@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   Search,
   Filter,
-  Calendar
+  Calendar,
+  Eye
 } from "lucide-react";
 
 import { Link } from "react-router-dom";
@@ -270,7 +271,7 @@ const Timeline = () => {
             </Card>
           ) : (
             filteredManuscripts.map((manuscript) => (
-              <Card key={manuscript._id} className="border-l-4 border-l-primary/50 hover:shadow-neural transition-all duration-300">
+              <Card key={manuscript._id} className="relative border-l-4 border-l-primary/50 hover:shadow-neural transition-all duration-300">
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
                     <div className="flex items-center justify-center w-10 h-10 bg-secondary/20 rounded-full">
@@ -352,6 +353,21 @@ const Timeline = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Review Button for Reviewers */}
+                  {userRole === 'reviewer' && (
+                    <div className="absolute bottom-4 right-4">
+                      <Link to={`/review/${manuscript._id}`}>
+                        <Button
+                          className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Review
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))

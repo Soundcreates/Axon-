@@ -1,6 +1,6 @@
 import Manuscript from '../models/manuscriptModel.js';
 import User from '../models/userModel.js';
-import ipfsService from '../services/ipfsService.js';
+import ipfsService, { fetchDocument } from '../services/ipfsService.js';
 import mongoose from 'mongoose';
 
 const submitManuscript = async (req, res) => {
@@ -11,11 +11,13 @@ const submitManuscript = async (req, res) => {
       keywords,
       category,
       ipfsHash,
+      contentHash,
       selectedReviewers,
       priority,
       stakingCost,
       transactionHash,
       blockchainId,
+      manuscriptId,
       deadline
     } = req.body;
 
@@ -26,6 +28,8 @@ const submitManuscript = async (req, res) => {
     console.log("Keywords: ", keywords);
     console.log("Category: ", category);
     console.log("IPFS Hash: ", ipfsHash);
+    console.log("Content Hash: ", contentHash);
+    console.log("Manuscript ID: ", manuscriptId);
     console.log("Selected Reviewers: ", selectedReviewers);
     console.log("Priority: ", priority);
     console.log("Staking Cost: ", stakingCost);
@@ -58,12 +62,12 @@ const submitManuscript = async (req, res) => {
       abstract: description,  // Map description to abstract
       keywords: keywordsArray,  // Use processed keywords array
       category,
-      contentHash: ipfsHash,  // Map ipfsHash to contentHash
+      contentHash: contentHash || ipfsHash,  // Use contentHash if provided, fallback to ipfsHash
       author: userId,
       reviewers: reviewersArray,  // Use properly formatted reviewers array
       deadline: new Date(deadline),  // Add deadline field
       blockchain: {  // Structure blockchain data properly
-        manuscriptId: ipfsHash,  // Use IPFS hash as manuscript ID
+        manuscriptId: manuscriptId || ipfsHash,  // Use provided manuscriptId or fallback to ipfsHash
         transactionHash,
         blockNumber: blockchainId
       },
@@ -243,15 +247,8 @@ const getManuscriptDetails = async (req, res) => {
         const { manuscriptId } = req.params;
 
         const manuscript = await Manuscript.findById(manuscriptId)
-            .populate('author', 'name email reputation')
-            .populate('reviewers.reviewer', 'name email reputation')
-            .populate({
-                path: 'reviews',
-                populate: {
-                    path: 'reviewer',
-                    select: 'name email'
-                }
-            });
+            .populate('author', 'name email')
+            .populate('reviewers.reviewer', 'name email');
 
         if (!manuscript) {
             return res.status(404).json({
@@ -287,9 +284,233 @@ const getManuscriptDetails = async (req, res) => {
     }
 };
 
+const markReviewComplete = async (req, res) => {
+    try {
+        const { manuscriptId } = req.params;
+        const { reviewComments } = req.body;
+        const userId = req.user.id;
+
+        const manuscript = await Manuscript.findById(manuscriptId);
+        if (!manuscript) {
+            return res.status(404).json({
+                success: false,
+                message: 'Manuscript not found'
+            });
+        }
+
+        // Check if user is assigned as a reviewer
+        const reviewerIndex = manuscript.reviewers.findIndex(
+            r => r.reviewer.toString() === userId.toString()
+        );
+
+        if (reviewerIndex === -1) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not assigned as a reviewer for this manuscript'
+            });
+        }
+
+        // Validate review comments
+        if (!reviewComments || !reviewComments.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Review comments are required'
+            });
+        }
+
+        // Update the reviewer's status to completed and add review comments
+        manuscript.reviewers[reviewerIndex].status = 'completed';
+        manuscript.reviewers[reviewerIndex].reviewComments = reviewComments.trim();
+        manuscript.reviewers[reviewerIndex].completedAt = new Date();
+        
+        // Check if all reviewers have completed their reviews
+        const allReviewsComplete = manuscript.reviewers.every(
+            r => r.status === 'completed'
+        );
+
+        // If all reviews are complete, update manuscript status
+        if (allReviewsComplete) {
+            manuscript.status = 'reviewed';
+        }
+
+        await manuscript.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Review marked as complete',
+            data: {
+                manuscriptId: manuscript._id,
+                userId: userId,
+                allReviewsComplete: allReviewsComplete,
+                manuscriptStatus: manuscript.status,
+                completedReviews: manuscript.reviewers.filter(r => r.status === 'completed').length,
+                totalReviewers: manuscript.reviewers.length
+            }
+        });
+
+    } catch (error) {
+        console.error('Error marking review as complete:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark review as complete'
+        });
+    }
+};
+
+const finalizeManuscriptReview = async (req, res) => {
+    try {
+        const { manuscriptId } = req.params;
+        const { deadlinePassed, autoFinalized } = req.body;
+        const userId = req.user.id;
+
+        const manuscript = await Manuscript.findById(manuscriptId);
+        if (!manuscript) {
+            return res.status(404).json({
+                success: false,
+                message: 'Manuscript not found'
+            });
+        }
+
+        // Check if user is the author (unless auto-finalized)
+        if (!autoFinalized && manuscript.author.toString() !== userId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only the author can finalize the review process'
+            });
+        }
+
+        // Check if all reviewers have completed their reviews
+        const allReviewsComplete = manuscript.reviewers.every(
+            r => r.status === 'completed'
+        );
+
+        // Allow finalization if all reviews are complete OR if deadline has passed OR if auto-finalized
+        if (!allReviewsComplete && !deadlinePassed && !autoFinalized) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot finalize: not all reviews are complete and deadline has not passed'
+            });
+        }
+
+        // Update manuscript status to reviewed
+        manuscript.status = 'reviewed';
+        manuscript.finalizedAt = new Date();
+        manuscript.finalizedBy = userId;
+        
+        if (autoFinalized) {
+            manuscript.finalizationReason = 'auto_finalized';
+        } else if (deadlinePassed) {
+            manuscript.finalizationReason = 'deadline_passed';
+        } else {
+            manuscript.finalizationReason = 'all_reviews_complete';
+        }
+
+        await manuscript.save();
+
+        // Log incomplete reviewers for potential slashing
+        const incompleteReviewers = manuscript.reviewers.filter(r => r.status !== 'completed');
+        if (incompleteReviewers.length > 0) {
+            console.log(`Manuscript ${manuscriptId} finalized with ${incompleteReviewers.length} incomplete reviewers:`, 
+                incompleteReviewers.map(r => r.reviewer));
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Manuscript review process finalized',
+            data: {
+                manuscriptId: manuscript._id,
+                status: manuscript.status,
+                completedReviews: manuscript.reviewers.filter(r => r.status === 'completed').length,
+                totalReviewers: manuscript.reviewers.length,
+                incompleteReviewers: incompleteReviewers.length,
+                finalizationReason: manuscript.finalizationReason
+            }
+        });
+
+    } catch (error) {
+        console.error('Error finalizing manuscript review:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to finalize manuscript review'
+        });
+    }
+};
+
+const fetchManuscriptDocument = async (req, res) => {
+    try {
+        const { manuscriptId } = req.params;
+
+        // First, get the manuscript to verify access and get content hash
+        const manuscript = await Manuscript.findById(manuscriptId)
+            .populate('author', 'name email')
+            .populate('reviewers.reviewer', 'name email');
+
+        if (!manuscript) {
+            return res.status(404).json({
+                success: false,
+                message: 'Manuscript not found'
+            });
+        }
+
+        // Check access permissions
+        const isAuthor = manuscript.author._id.toString() === req.user.id.toString();
+        const isAssignedReviewer = manuscript.reviewers.some(
+            r => r.reviewer._id.toString() === req.user.id.toString()
+        );
+
+        if (!isAuthor && !isAssignedReviewer && req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Fetch document from IPFS using the content hash
+        const documentResult = await fetchDocument(manuscript.contentHash);
+
+        if (documentResult.success && documentResult.accessible) {
+            res.status(200).json({
+                success: true,
+                message: 'Document fetched successfully',
+                data: {
+                    manuscriptId: manuscript._id,
+                    title: manuscript.title,
+                    contentHash: manuscript.contentHash,
+                    documentUrl: documentResult.documentUrl,
+                    accessible: documentResult.accessible,
+                    contentType: documentResult.contentType,
+                    contentLength: documentResult.contentLength
+                }
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                message: 'Document not accessible',
+                error: documentResult.error || 'Document could not be fetched from IPFS',
+                data: {
+                    manuscriptId: manuscript._id,
+                    contentHash: manuscript.contentHash,
+                    accessible: false
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Error fetching manuscript document:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch manuscript document',
+            error: error.message
+        });
+    }
+};
+
 export {
     submitManuscript,
     getManuscripts,
     assignReviewers,
-    getManuscriptDetails
+    getManuscriptDetails,
+    markReviewComplete,
+    finalizeManuscriptReview,
+    fetchManuscriptDocument
 };

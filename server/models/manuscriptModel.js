@@ -54,6 +54,13 @@ const manuscriptSchema = new mongoose.Schema({
             type: String,
             enum: ['assigned', 'accepted', 'declined', 'completed'],
             default: 'assigned'
+        },
+        reviewComments: {
+            type: String,
+            maxlength: 2000
+        },
+        completedAt: {
+            type: Date
         }
     }],
     reviews: [{
@@ -77,6 +84,17 @@ const manuscriptSchema = new mongoose.Schema({
         manuscriptId: String, // blockchain manuscript ID (cid that we get from ipfs)
         transactionHash: String,
         blockNumber: Number
+    },
+    finalizedAt: {
+        type: Date
+    },
+    finalizedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    finalizationReason: {
+        type: String,
+        enum: ['all_reviews_complete', 'deadline_passed', 'auto_finalized']
     }
 }, {
     timestamps: true

@@ -13,8 +13,23 @@ import { useWallet } from "./WalletContext";
 import PeerReviewABI from "../contractData/peerReview.json";
 import AxonTokenABI from "../contractData/axonToken.json";
 
-const PEER_REVIEW_ADDRESS = "0x3225aD9A3c6e9886DB271aBBcdC62637A593B9fb";
-const AXON_TOKEN_ADDRESS = "0xB8DB97bD61e9b8b31FaAFe7d0E51aD26eB043F42";
+// Contract addresses for different networks
+const CONTRACT_ADDRESSES = {
+  sepolia: {
+    PEER_REVIEW: "0x3225aD9A3c6e9886DB271aBBcdC62637A593B9fb",
+    AXON_TOKEN: "0xB8DB97bD61e9b8b31FaAFe7d0E51aD26eB043F42"
+  },
+  hardhat: {
+    PEER_REVIEW: "0x3225aD9A3c6e9886DB271aBBcdC62637A593B9fb",
+    AXON_TOKEN: "0xB8DB97bD61e9b8b31FaAFe7d0E51aD26eB043F42"
+  }
+};
+
+// Supported networks
+const SUPPORTED_NETWORKS = {
+  11155111: "sepolia", // Sepolia testnet
+  31337: "hardhat"     // Hardhat local
+};
 
 // Type for the manuscript
 type Manuscript = {
@@ -34,6 +49,8 @@ interface IContractState {
   axonTokenContract: Contract | null;
   isLoading: boolean;
   error: string | null;
+  networkSupported: boolean;
+  currentNetwork: string | null;
 }
 
 // Interface for the values and functions exposed by the context
@@ -62,6 +79,12 @@ interface IContractContext extends IContractState {
   axonToken_approve: (spender: string, amount: bigint) => Promise<ethers.ContractTransactionResponse>;
   axonToken_allowance: (owner: string, spender: string) => Promise<bigint>;
   axonToken_giveWelcomeTokens: () => Promise<ethers.ContractTransactionResponse>;
+
+  // PeerReview Contract Getter Functions
+  getStakeAmount: () => Promise<bigint>;
+  getRewardAmount: () => Promise<bigint>;
+  // Helper functions
+  generateManuscriptId: (contentHash: string, authorAddress: string, timestamp?: number) => string;
   //addresses
   peerReviewAddress: string;
   axonTokenAddress: string;
@@ -78,41 +101,78 @@ interface ContractProviderProps {
 }
 
 export const ContractProvider = ({ children }: ContractProviderProps) => {
-  const { signer } = useWallet(); // Use the custom hook instead of useContext
+  const { signer } = useWallet();
 
   const [state, setState] = useState<IContractState>({
     peerReviewContract: null,
     axonTokenContract: null,
     isLoading: false,
     error: null,
+    networkSupported: false,
+    currentNetwork: null,
   });
 
   // Initialize contracts when signer is available
   useEffect(() => {
     if (signer) {
       try {
-        const peerReviewInstance = new ethers.Contract(
-          PEER_REVIEW_ADDRESS,
-          PeerReviewABI.abi, // Use the abi property
-          signer
-        );
-        const axonTokenInstance = new ethers.Contract(
-          AXON_TOKEN_ADDRESS,
-          AxonTokenABI.abi, // Use the abi property
-          signer
-        );
+        const initializeContracts = async () => {
+          try {
+            // Check network first
+            const network = await signer.provider?.getNetwork();
+            console.log("Current network:", network);
 
-        setState((prevState) => ({
-          ...prevState,
-          peerReviewContract: peerReviewInstance,
-          axonTokenContract: axonTokenInstance,
-          error: null,
-        }));
+            const chainId = Number(network?.chainId);
+            const networkName = SUPPORTED_NETWORKS[chainId as keyof typeof SUPPORTED_NETWORKS];
+
+            if (!networkName) {
+              throw new Error(`Unsupported network. Please switch to Sepolia testnet (Chain ID: 11155111) or Hardhat local (Chain ID: 31337). Current Chain ID: ${chainId}`);
+            }
+
+            const contractAddresses = CONTRACT_ADDRESSES[networkName];
+            if (!contractAddresses) {
+              throw new Error(`Contract addresses not configured for network: ${networkName}`);
+            }
+
+            // Create contracts with proper error handling
+            const peerReviewInstance = new ethers.Contract(
+              contractAddresses.PEER_REVIEW,
+              PeerReviewABI.abi,
+              signer
+            );
+            const axonTokenInstance = new ethers.Contract(
+              contractAddresses.AXON_TOKEN,
+              AxonTokenABI.abi,
+              signer
+            );
+
+            setState((prevState) => ({
+              ...prevState,
+              peerReviewContract: peerReviewInstance,
+              axonTokenContract: axonTokenInstance,
+              error: null,
+              networkSupported: true,
+              currentNetwork: networkName,
+            }));
+          } catch (error) {
+            console.error("Error initializing contracts:", error);
+            setState((prevState) => ({
+              ...prevState,
+              error: error instanceof Error ? error.message : "Failed to initialize contracts. Please check your network connection.",
+              networkSupported: false,
+              currentNetwork: null,
+            }));
+          }
+        };
+
+        initializeContracts();
       } catch (error) {
-        console.error("Error initializing contracts:", error);
+        console.error("Error in contract initialization:", error);
         setState((prevState) => ({
           ...prevState,
           error: "Failed to initialize contracts",
+          networkSupported: false,
+          currentNetwork: null,
         }));
       }
     } else {
@@ -120,11 +180,19 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         ...prevState,
         peerReviewContract: null,
         axonTokenContract: null,
+        networkSupported: false,
+        currentNetwork: null,
       }));
     }
   }, [signer]);
 
-  // Helper function to handle transactions
+  // Helper function to generate manuscript ID
+  const generateManuscriptId = useCallback((contentHash: string, authorAddress: string, timestamp?: number): string => {
+    const time = timestamp || Date.now();
+    return ethers.keccak256(ethers.toUtf8Bytes(contentHash + authorAddress + time.toString()));
+  }, []);
+
+  // Helper function to handle transactions with better error handling
   const handleTransaction = async (txPromise: Promise<any>) => {
     try {
       setState((s) => ({ ...s, isLoading: true, error: null }));
@@ -133,7 +201,27 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
       console.log("Transaction successful:", receipt);
       return receipt;
     } catch (e: any) {
-      const errorMessage = e.reason || e.message || "Transaction failed";
+      console.error("Transaction error details:", e);
+
+      // Handle specific ethers.js v6 errors
+      let errorMessage = "Transaction failed";
+
+      if (e.code === "UNCONFIGURED_NAME") {
+        errorMessage = "Network configuration error. Please check your wallet connection and ensure you're on the correct network.";
+      } else if (e.code === "NETWORK_ERROR") {
+        errorMessage = "Network error. Please check your internet connection.";
+      } else if (e.code === "TIMEOUT") {
+        errorMessage = "Transaction timeout. Please try again.";
+      } else if (e.code === "INSUFFICIENT_FUNDS") {
+        errorMessage = "Insufficient funds for transaction.";
+      } else if (e.code === "USER_REJECTED") {
+        errorMessage = "Transaction was rejected by user.";
+      } else if (e.reason) {
+        errorMessage = e.reason;
+      } else if (e.message) {
+        errorMessage = e.message;
+      }
+
       console.error("Transaction failed:", errorMessage);
       setState((s) => ({ ...s, error: errorMessage }));
       throw new Error(errorMessage);
@@ -143,21 +231,35 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
   };
 
   // Wrapper Functions for Smart Contract Methods
-  const peerReviewAddress = PEER_REVIEW_ADDRESS; // Exported for use in other components
+  const peerReviewAddress = state.peerReviewContract?.target as string || "";
 
   const peerReview_submitManuscript = useCallback(
     async (manuscriptHash: string, title: string, stakingAmount: bigint): Promise<ethers.ContractTransactionResponse> => {
       if (!state.peerReviewContract) throw new Error("Contract not initialized");
 
       try {
-
         setState((s) => ({ ...s, isLoading: true, error: null }));
-        const tx = await state.peerReviewContract.submitManuscript(manuscriptHash, title, stakingAmount);
+
+        const tx = await state.peerReviewContract.submitManuscript(
+          manuscriptHash,
+          title,
+          stakingAmount
+        );
+
         console.log("Transaction submitted:", tx);
         return tx;
       } catch (e: any) {
-        const errorMessage = e.reason || e.message || "Transaction failed";
-        console.error("Transaction failed:", errorMessage);
+        console.error("Submit manuscript error:", e);
+
+        let errorMessage = "Failed to submit manuscript";
+        if (e.code === "UNCONFIGURED_NAME") {
+          errorMessage = "Network configuration error. Please reconnect your wallet and ensure you're on the correct network.";
+        } else if (e.reason) {
+          errorMessage = e.reason;
+        } else if (e.message) {
+          errorMessage = e.message;
+        }
+
         setState((s) => ({ ...s, error: errorMessage }));
         throw new Error(errorMessage);
       } finally {
@@ -168,10 +270,24 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
   );
 
   const peerReview_assignReviewers = useCallback(
-    async (manuscriptId: string, reviewers: string[]) => {
+    async (manuscriptId: string, reviewerAddresses: string[]) => {
       if (!state.peerReviewContract) throw new Error("Contract not initialized");
+
+      // Validate that all reviewer addresses are valid Ethereum addresses
+      const validAddresses = reviewerAddresses.filter(addr => {
+        try {
+          return ethers.isAddress(addr);
+        } catch {
+          return false;
+        }
+      });
+
+      if (validAddresses.length !== reviewerAddresses.length) {
+        throw new Error("Some reviewer addresses are invalid");
+      }
+
       await handleTransaction(
-        state.peerReviewContract.assignReviewers(manuscriptId, reviewers)
+        state.peerReviewContract.assignReviewers(manuscriptId, validAddresses)
       );
     },
     [state.peerReviewContract]
@@ -183,18 +299,23 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         throw new Error("Contracts not initialized");
       }
 
-      // Get stake amount
-      const stakeAmount = await state.peerReviewContract.stakeAmount();
+      try {
+        // Get stake amount
+        const stakeAmount = await state.peerReviewContract.stakeAmount();
 
-      // Approve tokens first
-      await handleTransaction(
-        state.axonTokenContract.approve(PEER_REVIEW_ADDRESS, stakeAmount)
-      );
+        // Approve tokens first
+        await handleTransaction(
+          state.axonTokenContract.approve(peerReviewAddress, stakeAmount)
+        );
 
-      // Then stake
-      await handleTransaction(
-        state.peerReviewContract.stakeForReview(manuscriptId)
-      );
+        // Then stake
+        await handleTransaction(
+          state.peerReviewContract.stakeForReview(manuscriptId)
+        );
+      } catch (error) {
+        console.error("Stake for review error:", error);
+        throw error;
+      }
     },
     [state.peerReviewContract, state.axonTokenContract]
   );
@@ -227,7 +348,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
 
       // Approve first, then fund
       await handleTransaction(
-        state.axonTokenContract.approve(PEER_REVIEW_ADDRESS, amount)
+        state.axonTokenContract.approve(peerReviewAddress, amount)
       );
       await handleTransaction(
         state.peerReviewContract.fundRewardPool(amount)
@@ -262,8 +383,17 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         console.log("Approve transaction submitted:", tx);
         return tx;
       } catch (e: any) {
-        const errorMessage = e.reason || e.message || "Approve transaction failed";
-        console.error("Approve transaction failed:", errorMessage);
+        console.error("Approve transaction error:", e);
+
+        let errorMessage = "Approve transaction failed";
+        if (e.code === "UNCONFIGURED_NAME") {
+          errorMessage = "Network configuration error. Please reconnect your wallet.";
+        } else if (e.reason) {
+          errorMessage = e.reason;
+        } else if (e.message) {
+          errorMessage = e.message;
+        }
+
         setState((s) => ({ ...s, error: errorMessage }));
         throw new Error(errorMessage);
       } finally {
@@ -283,26 +413,53 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
 
   const axonToken_giveWelcomeTokens = useCallback(
     async (): Promise<ethers.ContractTransactionResponse> => {
-      if (!state.axonTokenContract) throw new Error("Token contract not initialized");
+      if (!state.axonTokenContract || !signer) throw new Error("Token contract not initialized");
 
       try {
         setState((s) => ({ ...s, isLoading: true, error: null }));
-        const tx = await state.axonTokenContract.giveWelcomeTokens();
+        // The contract function expects an address parameter (the recipient)
+        const signerAddress = await signer.getAddress();
+        const tx = await state.axonTokenContract.giveWelcomeTokens(signerAddress);
         console.log("Welcome tokens transaction submitted:", tx);
         return tx;
       } catch (e: any) {
-        const errorMessage = e.reason || e.message || "Give welcome tokens failed";
-        console.error("Give welcome tokens failed:", errorMessage);
+        console.error("Give welcome tokens error:", e);
+
+        let errorMessage = "Give welcome tokens failed";
+        if (e.code === "UNCONFIGURED_NAME") {
+          errorMessage = "Network configuration error. Please reconnect your wallet.";
+        } else if (e.reason) {
+          errorMessage = e.reason;
+        } else if (e.message) {
+          errorMessage = e.message;
+        }
+
         setState((s) => ({ ...s, error: errorMessage }));
         throw new Error(errorMessage);
       } finally {
         setState((s) => ({ ...s, isLoading: false }));
       }
     },
-    [state.axonTokenContract]
+    [state.axonTokenContract, signer]
   );
 
-  const axonTokenAddress = AXON_TOKEN_ADDRESS; // Exported for use in other components
+  const getStakeAmount = useCallback(
+    async (): Promise<bigint> => {
+      if (!state.peerReviewContract) throw new Error("Contract not initialized");
+      return await state.peerReviewContract.stakeAmount();
+    },
+    [state.peerReviewContract]
+  );
+
+  const getRewardAmount = useCallback(
+    async (): Promise<bigint> => {
+      if (!state.peerReviewContract) throw new Error("Contract not initialized");
+      return await state.peerReviewContract.rewardAmount();
+    },
+    [state.peerReviewContract]
+  );
+
+  const axonTokenAddress = state.axonTokenContract?.target as string || "";
 
   // Context value
   const contextValue: IContractContext = {
@@ -318,8 +475,9 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     axonToken_approve,
     axonToken_allowance,
     axonToken_giveWelcomeTokens,
-
-    //addresses
+    getStakeAmount,
+    getRewardAmount,
+    generateManuscriptId,
     peerReviewAddress,
     axonTokenAddress,
   };

@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Payment from "./pages/Payment";
 import Timeline from "./pages/Timeline";
+import Review from "./pages/Review";
 import Submission from "./pages/Submission";
 import NotFound from "./pages/NotFound";
 import Register from "./pages/Register"
@@ -43,6 +44,7 @@ const App = () => (
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/payment" element={<Payment />} />
                   <Route path="/timeline" element={<Timeline />} />
+                  <Route path="/review/:manuscriptId" element={<Review />} />
 
                   <Route path="/submission" element={<Submission />} />
 
