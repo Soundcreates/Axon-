@@ -116,35 +116,35 @@ export const TokenBalance = ({ staked, available, earned, symbol }: TokenBalance
   );
 };
 
-export const DashboardStats = () => {
+export const DashboardStats = ({ stats, isLoading = false }) => {
   const statsData = [
     {
       title: "Active Reviews",
-      value: "3",
+      value: isLoading ? "..." : stats.activeReviews.toString(),
       description: "Currently assigned",
       icon: <FileText className="h-4 w-4" />,
-      trend: "+1 this week",
+      trend: isLoading ? "" : `${stats.activeReviews} assigned`,
     },
     {
       title: "Avg Review Time",
-      value: "4.2d",
-      description: "Below 5d target",
+      value: isLoading ? "..." : `${stats.avgReviewTime}d`,
+      description: isLoading ? "Loading..." : "Below 5d target",
       icon: <Clock className="h-4 w-4" />,
-      trend: "-0.5d improvement",
+      trend: isLoading ? "" : stats.avgReviewTime <= 5 ? "Good pace" : "Needs improvement",
     },
     {
       title: "Network Peers",
-      value: "1,247",
-      description: "Active reviewers",
+      value: isLoading ? "..." : stats.networkPeers.toLocaleString(),
+      description: "Active users",
       icon: <Users className="h-4 w-4" />,
-      trend: "+12% this month",
+      trend: isLoading ? "" : "Growing network",
     },
     {
       title: "Quality Rating",
-      value: "4.8/5",
-      description: "Peer feedback",
+      value: isLoading ? "..." : `${stats.qualityRating.toFixed(1)}/5`,
+      description: "Based on reputation",
       icon: <Star className="h-4 w-4" />,
-      trend: "Excellent",
+      trend: isLoading ? "" : stats.qualityRating >= 4 ? "Excellent" : stats.qualityRating >= 3 ? "Good" : "Improving",
     },
   ];
 

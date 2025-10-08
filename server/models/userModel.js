@@ -44,6 +44,14 @@ const UserSchema = new mongoose.Schema({
     rep: {
         type: Number,
         default : 0,
+    },
+    earnedTokens: {
+        type: Number,
+        default: 0
+    },
+    stakedTokens: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 

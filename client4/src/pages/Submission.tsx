@@ -386,39 +386,18 @@ const Submission = () => {
             throw new Error("Invalid staking amount");
           }
 
-          // Generate proper manuscript ID
-          const manuscriptId = generateManuscriptId(uploadFileHash, account);
-          console.log("Generated manuscript ID:", manuscriptId);
+          // Note: We'll get the actual manuscript ID from the smart contract event
+          // The smart contract generates its own ID using block.timestamp
+          console.log("Submitting manuscript to blockchain...");
 
-          // Assign reviewers to blockchain if we have selected reviewers with wallet addresses
-          if (formData.selectedReviewers.length > 0) {
-            try {
-              // Get reviewer wallet addresses
-              const selectedReviewerObjects = reviewers.filter(reviewer =>
-                formData.selectedReviewers.includes(reviewer._id)
-              );
-
-              const reviewerWalletAddresses = selectedReviewerObjects
-                .filter(reviewer => reviewer.walletAddress)
-                .map(reviewer => reviewer.walletAddress);
-
-              if (reviewerWalletAddresses.length > 0) {
-                console.log("Assigning reviewers to blockchain:", reviewerWalletAddresses);
-                await peerReview_assignReviewers(manuscriptId, reviewerWalletAddresses);
-                console.log("Reviewers assigned to blockchain successfully");
-              } else {
-                console.log("No reviewer wallet addresses available for blockchain assignment");
-              }
-            } catch (assignError: any) {
-              console.error("Failed to assign reviewers to blockchain:", assignError);
-              toast.warning("Manuscript submitted but reviewer assignment to blockchain failed: " + assignError.message);
-            }
-          }
+          // Note: Reviewer assignment will be done after we get the actual manuscript ID from the smart contract
 
 
 
           // Try the contract call with detailed error handling
           let contractTx;
+          let actualManuscriptId = null;
+          let receipt = null;
           try {
             console.log("Calling contract submitManuscript function...");
             contractTx = await peerReview_submitManuscript(
@@ -426,6 +405,56 @@ const Submission = () => {
               formData.title,
               stakingAmountToWei
             );
+
+            // Wait for the transaction to be mined and capture the event
+            receipt = await contractTx.wait();
+            console.log("Transaction receipt:", receipt);
+
+            // Extract the manuscript ID from the ManuscriptSubmitted event
+            const event = receipt.logs.find(log => {
+              try {
+                const parsed = contractContext.peerReviewContract?.interface.parseLog(log);
+                return parsed?.name === 'ManuscriptSubmitted';
+              } catch {
+                return false;
+              }
+            });
+
+            if (event && contractContext.peerReviewContract) {
+              const parsedEvent = contractContext.peerReviewContract.interface.parseLog(event);
+              actualManuscriptId = parsedEvent.args.manuscriptId;
+              console.log("Captured manuscript ID from event:", actualManuscriptId);
+            } else {
+              console.warn("ManuscriptSubmitted event not found in transaction logs");
+              // Fallback: generate ID using the same method as smart contract
+              actualManuscriptId = generateManuscriptId(uploadFileHash, account);
+              console.log("Using fallback manuscript ID:", actualManuscriptId);
+            }
+
+            // Now assign reviewers to blockchain if we have selected reviewers with wallet addresses
+            if (formData.selectedReviewers.length > 0 && actualManuscriptId) {
+              try {
+                // Get reviewer wallet addresses
+                const selectedReviewerObjects = reviewers.filter(reviewer =>
+                  formData.selectedReviewers.includes(reviewer._id)
+                );
+
+                const reviewerWalletAddresses = selectedReviewerObjects
+                  .filter(reviewer => reviewer.walletAddress)
+                  .map(reviewer => reviewer.walletAddress);
+
+                if (reviewerWalletAddresses.length > 0) {
+                  console.log("Assigning reviewers to blockchain:", reviewerWalletAddresses);
+                  await peerReview_assignReviewers(actualManuscriptId, reviewerWalletAddresses);
+                  console.log("Reviewers assigned to blockchain successfully");
+                } else {
+                  console.log("No reviewer wallet addresses available for blockchain assignment");
+                }
+              } catch (assignError: any) {
+                console.error("Failed to assign reviewers to blockchain:", assignError);
+                toast.warning("Manuscript submitted but reviewer assignment to blockchain failed: " + assignError.message);
+              }
+            }
           } catch (contractError: any) {
             console.error("Contract call failed:", contractError);
 
@@ -449,9 +478,6 @@ const Submission = () => {
           }
 
           console.log("Contract transaction object:", contractTx);
-
-          const receipt = await contractTx.wait();
-
           console.log("Blockchain transaction successful: ", contractTx);
           //saving manuscript details to backend database
 
@@ -469,7 +495,7 @@ const Submission = () => {
             stakingCost: stakingAmount,
             transactionHash: contractTx.hash,
             blockchainId: receipt.blockNumber || "pending",
-            manuscriptId: manuscriptId, // Add the generated manuscript ID
+            manuscriptId: actualManuscriptId, // Use the actual manuscript ID from the smart contract
             deadline: formData.deadline
           };
 

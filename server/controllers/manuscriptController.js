@@ -1,6 +1,7 @@
 import Manuscript from '../models/manuscriptModel.js';
 import User from '../models/userModel.js';
 import ipfsService, { fetchDocument } from '../services/ipfsService.js';
+import blockchainService from '../services/blockchainService.js';
 import mongoose from 'mongoose';
 
 const submitManuscript = async (req, res) => {
@@ -217,15 +218,8 @@ const assignReviewers = async (req, res) => {
         manuscript.status = 'under_review';
         await manuscript.save();
 
-        // Submit to blockchain
-        try {
-            await blockchainService.assignReviewers(
-                manuscript.blockchain.manuscriptId,
-                reviewers.map(r => r.walletAddress)
-            );
-        } catch (blockchainError) {
-            console.error('Blockchain reviewer assignment failed:', blockchainError);
-        }
+        // Note: Blockchain reviewer assignment is handled by the frontend
+        // The frontend will call peerReview_assignReviewers directly using the user's wallet
 
         res.status(200).json({
             success: true,
@@ -322,29 +316,73 @@ const markReviewComplete = async (req, res) => {
         manuscript.reviewers[reviewerIndex].status = 'completed';
         manuscript.reviewers[reviewerIndex].reviewComments = reviewComments.trim();
         manuscript.reviewers[reviewerIndex].completedAt = new Date();
+
+        // Calculate reputation bonus based on review completion time and quality
+        const reviewerData = manuscript.reviewers[reviewerIndex];
+        const completionTime = new Date() - new Date(reviewerData.assignedAt);
+        const daysToComplete = Math.ceil(completionTime / (1000 * 60 * 60 * 24));
+        
+        // Base reputation gain
+        let reputationGain = 10;
+        
+        // Bonus for quick completion (within 3 days)
+        if (daysToComplete <= 3) {
+            reputationGain += 5;
+        } else if (daysToComplete <= 7) {
+            reputationGain += 2;
+        }
+        
+        // Bonus for detailed review comments
+        if (reviewComments.length > 200) {
+            reputationGain += 3;
+        } else if (reviewComments.length > 100) {
+            reputationGain += 1;
+        }
+        
+        // Update reviewer's reputation
+        await User.findByIdAndUpdate(userId, { 
+            $inc: { rep: reputationGain }
+        });
         
         // Check if all reviewers have completed their reviews
         const allReviewsComplete = manuscript.reviewers.every(
             r => r.status === 'completed'
         );
 
-        // If all reviews are complete, update manuscript status
+        // If all reviews are complete, update manuscript status and distribute rewards
         if (allReviewsComplete) {
             manuscript.status = 'reviewed';
+            manuscript.finalizedAt = new Date();
+            manuscript.finalizedBy = userId;
+            manuscript.finalizationReason = 'all_reviews_complete';
+
+            // Automatically award tokens to all completed reviewers
+            const completedReviewers = manuscript.reviewers.filter(r => r.status === 'completed');
+            for (const reviewer of completedReviewers) {
+                // Award 25 tokens per completed review
+                await User.findByIdAndUpdate(reviewer.reviewer, { 
+                    $inc: { earnedTokens: 25 }
+                });
+                console.log(`Awarded 25 tokens to reviewer ${reviewer.reviewer} for completing review of manuscript ${manuscriptId}`);
+            }
+
+            console.log(`All reviews completed for manuscript ${manuscriptId}. Automatically distributed ${completedReviewers.length * 25} tokens to reviewers.`);
         }
 
         await manuscript.save();
 
         res.status(200).json({
             success: true,
-            message: 'Review marked as complete',
+            message: allReviewsComplete ? 'Review marked as complete and manuscript automatically finalized with rewards distributed!' : 'Review marked as complete',
             data: {
                 manuscriptId: manuscript._id,
                 userId: userId,
                 allReviewsComplete: allReviewsComplete,
                 manuscriptStatus: manuscript.status,
                 completedReviews: manuscript.reviewers.filter(r => r.status === 'completed').length,
-                totalReviewers: manuscript.reviewers.length
+                totalReviewers: manuscript.reviewers.length,
+                rewardsDistributed: allReviewsComplete,
+                tokensAwarded: allReviewsComplete ? 25 : 0
             }
         });
 
@@ -396,6 +434,9 @@ const finalizeManuscriptReview = async (req, res) => {
         manuscript.status = 'reviewed';
         manuscript.finalizedAt = new Date();
         manuscript.finalizedBy = userId;
+
+        // Note: Token rewards are now automatically distributed when all reviews are completed
+        // This finalization is only for manual finalization when not all reviews are complete
         
         if (autoFinalized) {
             manuscript.finalizationReason = 'auto_finalized';

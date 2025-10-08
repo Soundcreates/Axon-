@@ -220,9 +220,14 @@ const Review = () => {
     try {
       setIsStakingForReview(true);
 
-      // Generate proper manuscript ID using the same method as submission
-      const manuscriptIdBytes32 = generateManuscriptId(manuscript.contentHash, manuscript.author._id, new Date(manuscript.submittedAt).getTime());
+      // Use the stored blockchain manuscript ID from the database
+      const manuscriptIdBytes32 = manuscript.blockchain?.manuscriptId;
 
+      if (!manuscriptIdBytes32) {
+        throw new Error("Manuscript blockchain ID not found. Please contact support.");
+      }
+
+      console.log("Using stored manuscript ID for staking:", manuscriptIdBytes32);
       await peerReview_stakeForReview(manuscriptIdBytes32);
       setHasStaked(true);
       toast.success("Successfully staked for review!");
@@ -255,13 +260,19 @@ const Review = () => {
       // First, submit review to blockchain if wallet is connected
       if (account && walletStatus === 'connected') {
         try {
-          const manuscriptIdBytes32 = generateManuscriptId(manuscript.contentHash, manuscript.author._id, new Date(manuscript.submittedAt).getTime());
+          // Use the stored blockchain manuscript ID from the database
+          const manuscriptIdBytes32 = manuscript.blockchain?.manuscriptId;
+
+          if (!manuscriptIdBytes32) {
+            throw new Error("Manuscript blockchain ID not found. Please contact support.");
+          }
 
           // Create a review hash from the actual review comments
           const reviewHash = ethers.keccak256(
             ethers.toUtf8Bytes(`Review for ${manuscript.title} by ${account} at ${Date.now()}: ${reviewComments}`)
           );
 
+          console.log("Using stored manuscript ID for review submission:", manuscriptIdBytes32);
           await peerReview_submitReview(manuscriptIdBytes32, reviewHash);
           toast.success("Review submitted to blockchain!");
         } catch (blockchainError: any) {
@@ -285,6 +296,7 @@ const Review = () => {
 
       if (response.data.success) {
         setHasReviewed(true);
+
         // Update the manuscript state to reflect the change
         setManuscript(prev => prev ? {
           ...prev,
@@ -292,27 +304,16 @@ const Review = () => {
             r.reviewer._id === response.data.userId
               ? { ...r, status: 'completed' as const }
               : r
-          )
+          ),
+          status: response.data.data.allReviewsComplete ? 'reviewed' : prev.status
         } : null);
-        toast.success("Review submitted successfully!");
 
-        // Check if this was the last reviewer
-        const completedReviews = manuscript.reviewers.filter(r => r.status === 'completed').length + 1;
-        const totalReviewers = manuscript.reviewers.length;
-
-        if (completedReviews === totalReviewers) {
-          // All reviews completed - automatically finalize
-          toast.success(`Manuscript "${manuscript.title}" has been reviewed completely successfully!`);
-
-          // Auto-finalize the manuscript
-          setTimeout(async () => {
-            try {
-              await handleAutoFinalization();
-            } catch (error) {
-              console.error("Auto-finalization failed:", error);
-              toast.error("All reviews completed but finalization failed. Please contact the author.");
-            }
-          }, 2000); // Wait 2 seconds before auto-finalizing
+        // Show appropriate success message based on completion status
+        if (response.data.data.allReviewsComplete) {
+          toast.success(`🎉 All reviews completed! You earned ${response.data.data.tokensAwarded} AXON tokens!`);
+          toast.success(`Manuscript "${manuscript.title}" has been automatically finalized with rewards distributed to all reviewers!`);
+        } else {
+          toast.success("Review submitted successfully!");
         }
       } else {
         setError("Failed to mark review as complete");
@@ -327,50 +328,7 @@ const Review = () => {
     }
   };
 
-  const handleAutoFinalization = async () => {
-    if (!manuscript) return;
-
-    try {
-      setIsFinalizing(true);
-
-      // First, finalize on blockchain if wallet is connected
-      if (account && walletStatus === 'connected') {
-        try {
-          const manuscriptIdBytes32 = generateManuscriptId(manuscript.contentHash, manuscript.author._id, new Date(manuscript.submittedAt).getTime());
-
-          await peerReview_finalizePeriod(manuscriptIdBytes32);
-          toast.success("Manuscript automatically finalized on blockchain!");
-        } catch (blockchainError: any) {
-          console.error("Blockchain auto-finalization failed:", blockchainError);
-          toast.warning("Auto-finalized locally but blockchain finalization failed: " + blockchainError.message);
-        }
-      }
-
-      // Then update the backend
-      const response = await server.post(
-        `/manuscript/finalizeReview/${manuscript._id}`,
-        { autoFinalized: true },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          }
-        }
-      );
-
-      if (response.data.success) {
-        setManuscript(prev => prev ? { ...prev, status: 'reviewed' } : null);
-        toast.success("Manuscript automatically finalized! Tokens have been distributed to reviewers.");
-      } else {
-        console.error("Backend auto-finalization failed:", response.data);
-        toast.error("Auto-finalization failed on backend");
-      }
-    } catch (err: any) {
-      console.error("Error in auto-finalization:", err);
-      toast.error("Auto-finalization failed: " + err.message);
-    } finally {
-      setIsFinalizing(false);
-    }
-  };
+  // Auto-finalization is now handled automatically in the backend when all reviews are completed
 
   const handleFinalizeReview = async () => {
     if (!manuscript) return;
@@ -381,8 +339,14 @@ const Review = () => {
       // First, finalize on blockchain if wallet is connected
       if (account && walletStatus === 'connected') {
         try {
-          const manuscriptIdBytes32 = generateManuscriptId(manuscript.contentHash, manuscript.author._id, new Date(manuscript.submittedAt).getTime());
+          // Use the stored blockchain manuscript ID from the database
+          const manuscriptIdBytes32 = manuscript.blockchain?.manuscriptId;
 
+          if (!manuscriptIdBytes32) {
+            throw new Error("Manuscript blockchain ID not found. Please contact support.");
+          }
+
+          console.log("Using stored manuscript ID for finalization:", manuscriptIdBytes32);
           await peerReview_finalizePeriod(manuscriptIdBytes32);
           toast.success("Review period finalized on blockchain!");
         } catch (blockchainError: any) {
@@ -427,8 +391,14 @@ const Review = () => {
       // First, finalize on blockchain if wallet is connected
       if (account && walletStatus === 'connected') {
         try {
-          const manuscriptIdBytes32 = generateManuscriptId(manuscript.contentHash, manuscript.author._id, new Date(manuscript.submittedAt).getTime());
+          // Use the stored blockchain manuscript ID from the database
+          const manuscriptIdBytes32 = manuscript.blockchain?.manuscriptId;
 
+          if (!manuscriptIdBytes32) {
+            throw new Error("Manuscript blockchain ID not found. Please contact support.");
+          }
+
+          console.log("Using stored manuscript ID for deadline finalization:", manuscriptIdBytes32);
           await peerReview_finalizePeriod(manuscriptIdBytes32);
           toast.success("Review period finalized on blockchain due to deadline!");
         } catch (blockchainError: any) {
@@ -906,7 +876,7 @@ const Review = () => {
                     <p className="text-xs text-muted-foreground text-center">
                       {!hasStaked && "You must stake tokens before submitting your review."}
                       {hasStaked && !reviewComments.trim() && "Please provide review comments before submitting."}
-                      {hasStaked && reviewComments.trim() && "This will mark your individual review as complete. The manuscript will automatically finalize when all reviewers complete their reviews."}
+                      {hasStaked && reviewComments.trim() && "This will mark your individual review as complete. When all reviewers finish, you'll automatically receive 25 AXON tokens!"}
                     </p>
                   </div>
                 )}
@@ -964,7 +934,7 @@ const Review = () => {
                   </CardTitle>
                   <CardDescription>
                     {manuscript.reviewers.filter(r => r.status === 'completed').length === manuscript.reviewers.length
-                      ? "All reviews are complete. You can now finalize the review process."
+                      ? "All reviews are complete and rewards have been automatically distributed to reviewers."
                       : isDeadlinePassed
                         ? "Deadline has passed. You can finalize the review process now."
                         : "Wait for all reviewers to complete their reviews or finalize after deadline."
@@ -1019,7 +989,7 @@ const Review = () => {
                   )}
                   <p className="text-xs text-muted-foreground text-center mt-2">
                     {manuscript.reviewers.filter(r => r.status === 'completed').length === manuscript.reviewers.length
-                      ? "This will finalize the review process and update the manuscript status"
+                      ? "Rewards have already been automatically distributed. Finalization only updates the manuscript status."
                       : isDeadlinePassed
                         ? "This will finalize the review process. Incomplete reviewers may face token slashing."
                         : "Cannot finalize until all reviews are complete or deadline passes"

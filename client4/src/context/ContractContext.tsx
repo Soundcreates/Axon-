@@ -186,10 +186,14 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     }
   }, [signer]);
 
-  // Helper function to generate manuscript ID
+  // Helper function to generate manuscript ID (matches smart contract logic)
   const generateManuscriptId = useCallback((contentHash: string, authorAddress: string, timestamp?: number): string => {
     const time = timestamp || Date.now();
-    return ethers.keccak256(ethers.toUtf8Bytes(contentHash + authorAddress + time.toString()));
+    // Use abi.encodePacked equivalent: keccak256(abi.encodePacked(manuscriptHash, msg.sender, block.timestamp))
+    return ethers.keccak256(ethers.solidityPacked(
+      ["string", "address", "uint256"],
+      [contentHash, authorAddress, time]
+    ));
   }, []);
 
   // Helper function to handle transactions with better error handling

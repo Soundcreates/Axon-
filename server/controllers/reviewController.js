@@ -2,7 +2,7 @@ import Review from '../models/reviewModel.js';
 import Manuscript from '../models/manuscriptModel.js';
 import User from '../models/userModel.js';
 import ipfsService from '../services/ipfsService.js';
-// import blockchainService from '../services/blockchainService.js';
+import blockchainService from '../services/blockchainService.js';
 
 const submitReview = async (req, res) => {
     try {
@@ -94,30 +94,8 @@ const submitReview = async (req, res) => {
             $inc: { reputation: 10 }
         });
 
-        // Submit to blockchain (stake and review)
-        try {
-            const stakeResult = await blockchainService.stakeForReview(
-                manuscript.blockchain.manuscriptId,
-                req.user.walletAddress
-            );
-
-            const reviewResult = await blockchainService.submitReview(
-                manuscript.blockchain.manuscriptId,
-                reviewHash,
-                req.user.walletAddress
-            );
-
-            review.blockchain = {
-                transactionHash: reviewResult.transactionHash,
-                blockNumber: reviewResult.blockNumber,
-                stakeAmount: stakeResult.stakeAmount,
-                staked: true
-            };
-
-            await review.save();
-        } catch (blockchainError) {
-            console.error('Blockchain review submission failed:', blockchainError);
-        }
+        // Note: Blockchain review submission is handled by the frontend
+        // The frontend will call peerReview_stakeForReview and peerReview_submitReview directly
 
         res.status(201).json({
             success: true,

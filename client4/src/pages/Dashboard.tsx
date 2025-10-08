@@ -21,6 +21,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useToken } from "@/context/TokenContext";
 import { toast } from "sonner";
 import { TokenDebug } from "@/components/debug/TokenDebug";
+import { server } from "@/service/backendApi";
 
 type User = {
   walletAddress: string;
@@ -144,18 +145,57 @@ const Dashboard = () => {
       console.log("User hasnt loaded in!")
     }
   }, [])
-  // Mock user data - will be fetched from Supabase
+  // Dashboard statistics state
+  const [dashboardStats, setDashboardStats] = useState({
+    reputation: 0,
+    totalReviews: 0,
+    activeReviews: 0,
+    avgReviewTime: 0,
+    qualityRating: 0,
+    recentActivity: [],
+    expertise: [],
+    totalTokens: 0,
+    stakedTokens: 0,
+    earnedTokens: 0,
+    networkPeers: 0,
+    rank: 'Novice'
+  });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  // Fetch dashboard statistics
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        setIsLoadingStats(true);
+        const response = await server.get('/user/dashboard-stats', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
+
+        if (response.data.success) {
+          setDashboardStats(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+        // Keep default values if fetch fails
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+
+    if (user) {
+      fetchDashboardStats();
+    }
+  }, [user]);
+
+  // Fallback user data structure for compatibility
   const userData = {
     name: user?.name,
-
-    rep: 20,
-    totalTokens: 890,
-    pendingReviews: 3,
-    recentActivity: [
-      { type: "submission", title: "Advanced Neural Networks", status: "under_review", date: "2 days ago" },
-      { type: "review", title: "Quantum ML Applications", status: "completed", date: "1 week ago" },
-      { type: "reward", title: "Review Quality Bonus", amount: "25 AXON", date: "1 week ago" }
-    ]
+    rep: dashboardStats.reputation,
+    totalTokens: dashboardStats.totalTokens,
+    pendingReviews: dashboardStats.activeReviews,
+    recentActivity: dashboardStats.recentActivity
   };
 
   return (
@@ -237,21 +277,21 @@ const Dashboard = () => {
         </div>
 
         {/* Dashboard Stats */}
-        <DashboardStats />
+        <DashboardStats stats={dashboardStats} isLoading={isLoadingStats} />
 
         {/* Token and Reputation Cards */}
         <div className="grid lg:grid-cols-2 gap-6 mt-6">
           <TokenBalance
-            staked={150}
+            staked={dashboardStats.stakedTokens}
             available={tokenBalanceOf}
-            earned={320}
+            earned={dashboardStats.earnedTokens}
             symbol="AXON"
           />
           <ReputationCard
-            score={850}
-            rank="Expert"
-            reviews={47}
-            expertise={["Machine Learning", "Neural Networks", "Computer Vision"]}
+            score={dashboardStats.reputation}
+            rank={dashboardStats.rank}
+            reviews={dashboardStats.totalReviews}
+            expertise={dashboardStats.expertise.length > 0 ? dashboardStats.expertise : ["General Reviewer"]}
           />
         </div>
 
@@ -277,10 +317,10 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                    <span className="text-sm">Reputation</span>
+                    <span className="text-sm">Quality Rating</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold">10</span>
+                    <span className="font-bold">{dashboardStats.qualityRating.toFixed(1)}</span>
                     <span className="text-muted-foreground text-sm">/5.0</span>
                   </div>
                 </div>
@@ -288,17 +328,17 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">This Month</span>
+                    <span className="text-sm">Avg Review Time</span>
                   </div>
-                  <span className="font-bold text-green-600">+12%</span>
+                  <span className="font-bold text-green-600">{dashboardStats.avgReviewTime}d</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm">Reviews</span>
+                    <span className="text-sm">Total Reviews</span>
                   </div>
-                  <span className="font-bold">23</span>
+                  <span className="font-bold">{dashboardStats.totalReviews}</span>
                 </div>
               </CardContent>
             </Card>
