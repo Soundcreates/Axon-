@@ -439,16 +439,28 @@ const Submission = () => {
                   formData.selectedReviewers.includes(reviewer._id)
                 );
 
+                // Helper function to validate Ethereum wallet address
+                const isValidWalletAddress = (address) => {
+                  return /^0x[a-fA-F0-9]{40}$/.test(address);
+                };
+
                 const reviewerWalletAddresses = selectedReviewerObjects
-                  .filter(reviewer => reviewer.walletAddress)
+                  .filter(reviewer => reviewer.walletAddress && isValidWalletAddress(reviewer.walletAddress))
                   .map(reviewer => reviewer.walletAddress);
+
+                const reviewersWithoutWallet = selectedReviewerObjects.filter(reviewer => !reviewer.walletAddress || !isValidWalletAddress(reviewer.walletAddress));
 
                 if (reviewerWalletAddresses.length > 0) {
                   console.log("Assigning reviewers to blockchain:", reviewerWalletAddresses);
                   await peerReview_assignReviewers(actualManuscriptId, reviewerWalletAddresses);
                   console.log("Reviewers assigned to blockchain successfully");
+
+                  if (reviewersWithoutWallet.length > 0) {
+                    toast.warning(`Some reviewers (${reviewersWithoutWallet.map(r => r.name).join(', ')}) don't have wallet addresses and couldn't be assigned to blockchain`);
+                  }
                 } else {
                   console.log("No reviewer wallet addresses available for blockchain assignment");
+                  toast.warning("None of the selected reviewers have wallet addresses. They cannot be assigned to the blockchain.");
                 }
               } catch (assignError: any) {
                 console.error("Failed to assign reviewers to blockchain:", assignError);
@@ -839,9 +851,23 @@ const Submission = () => {
                         <div className="space-y-2">
                           <div className="flex justify-between items-start">
                             <h4 className="font-medium text-sm">{reviewer.name}</h4>
-                            <Badge variant="secondary" className="text-xs">
-                              Rep: {reviewer.rep}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="secondary" className="text-xs">
+                                Rep: {reviewer.rep}
+                              </Badge>
+                              {(() => {
+                                const isValidWallet = reviewer.walletAddress && /^0x[a-fA-F0-9]{40}$/.test(reviewer.walletAddress);
+                                return isValidWallet ? (
+                                  <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                                    ✓ Wallet
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="destructive" className="text-xs">
+                                    ✗ No Wallet
+                                  </Badge>
+                                );
+                              })()}
+                            </div>
                           </div>
                           <p className="text-xs text-muted-foreground">{reviewer.email}</p>
                           <div className="flex flex-wrap gap-1">
@@ -856,6 +882,11 @@ const Submission = () => {
                               </Badge>
                             )}
                           </div>
+                          {(!reviewer.walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(reviewer.walletAddress)) && (
+                            <p className="text-xs text-red-600 font-medium">
+                              Cannot assign to blockchain
+                            </p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

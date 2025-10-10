@@ -4,6 +4,11 @@ import ipfsService, { fetchDocument } from '../services/ipfsService.js';
 import blockchainService from '../services/blockchainService.js';
 import mongoose from 'mongoose';
 
+// Helper function to validate Ethereum wallet address
+const isValidWalletAddress = (address) => {
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
 const submitManuscript = async (req, res) => {
   try {
     const {
@@ -195,16 +200,25 @@ const assignReviewers = async (req, res) => {
             });
         }
 
-        // Validate reviewers
+        // Validate reviewers and fetch their wallet addresses
         const reviewers = await User.find({
             _id: { $in: reviewerIds },
             role: 'reviewer'
-        });
+        }).select('_id walletAddress name email');
 
         if (reviewers.length !== reviewerIds.length) {
             return res.status(400).json({
                 success: false,
                 message: 'Some reviewer IDs are invalid'
+            });
+        }
+
+        // Check if all reviewers have valid wallet addresses
+        const reviewersWithoutWallet = reviewers.filter(r => !r.walletAddress || !isValidWalletAddress(r.walletAddress));
+        if (reviewersWithoutWallet.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Some reviewers don't have valid wallet addresses: ${reviewersWithoutWallet.map(r => r.name).join(', ')}`
             });
         }
 
@@ -218,13 +232,22 @@ const assignReviewers = async (req, res) => {
         manuscript.status = 'under_review';
         await manuscript.save();
 
-        // Note: Blockchain reviewer assignment is handled by the frontend
-        // The frontend will call peerReview_assignReviewers directly using the user's wallet
+        // Return reviewer wallet addresses for blockchain assignment
+        const reviewerWalletAddresses = reviewers.map(r => r.walletAddress);
 
         res.status(200).json({
             success: true,
             message: 'Reviewers assigned successfully',
-            data: manuscript
+            data: {
+                manuscript,
+                reviewerWalletAddresses,
+                reviewers: reviewers.map(r => ({
+                    _id: r._id,
+                    name: r.name,
+                    email: r.email,
+                    walletAddress: r.walletAddress
+                }))
+            }
         });
 
     } catch (error) {

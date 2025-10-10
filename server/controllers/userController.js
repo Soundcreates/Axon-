@@ -71,7 +71,7 @@ export const ipfsUpload = async (req, res) => {
 
 export const listReviewers = async (req,res) => {
   try {
-    const reviewers = await User.find({role: "reviewer"}).select('-password');
+    const reviewers = await User.find({role: "reviewer"}).select('walletAddress name email bio role rep earnedTokens stakedTokens');
     if(!reviewers || reviewers.length === 0) {
       console.log("No reviewers")
       return res.status(404).json({message: "No reviewers available"});
