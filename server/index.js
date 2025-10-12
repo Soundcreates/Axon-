@@ -13,13 +13,17 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: [
+    origin:
       process.env.PROJECT_MODE === "development"
         ? "http://localhost:8080"
-        : process.env.PROD_URI || "https://axon-dun.vercel.app/",
-    ],
-    // methods:["GET","POST","DELETE","PUT","PATCH"],
+        : [
+            "https://axon-dun.vercel.app",
+            "https://axon-p64m.onrender.com",
+            process.env.PROD_URI,
+          ].filter(Boolean),
+    methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
     credentials: true,
+    optionsSuccessStatus: 200, // For legacy browser support
   })
 );
 
