@@ -106,7 +106,15 @@ const Index = () => {
               </TabsList>
 
               <TabsContent value="overview" className="space-y-8">
-                <DashboardStats />
+                <DashboardStats
+                  stats={{
+                    activeReviews: 3,
+                    avgReviewTime: 4,
+                    networkPeers: 1250,
+                    qualityRating: 4.2
+                  }}
+                  isLoading={false}
+                />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-2">

@@ -13,6 +13,18 @@ interface StatsCardProps {
   trend?: string;
 }
 
+interface DashboardStatsData {
+  activeReviews: number;
+  avgReviewTime: number;
+  networkPeers: number;
+  qualityRating: number;
+}
+
+interface DashboardStatsProps {
+  stats?: DashboardStatsData;
+  isLoading?: boolean;
+}
+
 export const StatsCard = ({ title, value, description, icon, trend }: StatsCardProps) => {
   return (
     <Card className="bg-gradient-card shadow-card hover:shadow-neural transition-all duration-300 transform hover:scale-105">
@@ -116,35 +128,45 @@ export const TokenBalance = ({ staked, available, earned, symbol }: TokenBalance
   );
 };
 
-export const DashboardStats = ({ stats, isLoading = false }) => {
+export const DashboardStats = ({ stats, isLoading = false }: DashboardStatsProps) => {
+  // Default values to prevent undefined access
+  const defaultStats: DashboardStatsData = {
+    activeReviews: 0,
+    avgReviewTime: 0,
+    networkPeers: 0,
+    qualityRating: 0,
+  };
+
+  const currentStats = stats || defaultStats;
+
   const statsData = [
     {
       title: "Active Reviews",
-      value: isLoading ? "..." : stats.activeReviews.toString(),
+      value: isLoading ? "..." : currentStats.activeReviews.toString(),
       description: "Currently assigned",
       icon: <FileText className="h-4 w-4" />,
-      trend: isLoading ? "" : `${stats.activeReviews} assigned`,
+      trend: isLoading ? "" : `${currentStats.activeReviews} assigned`,
     },
     {
       title: "Avg Review Time",
-      value: isLoading ? "..." : `${stats.avgReviewTime}d`,
+      value: isLoading ? "..." : `${currentStats.avgReviewTime}d`,
       description: isLoading ? "Loading..." : "Below 5d target",
       icon: <Clock className="h-4 w-4" />,
-      trend: isLoading ? "" : stats.avgReviewTime <= 5 ? "Good pace" : "Needs improvement",
+      trend: isLoading ? "" : currentStats.avgReviewTime <= 5 ? "Good pace" : "Needs improvement",
     },
     {
       title: "Network Peers",
-      value: isLoading ? "..." : stats.networkPeers.toLocaleString(),
+      value: isLoading ? "..." : currentStats.networkPeers.toLocaleString(),
       description: "Active users",
       icon: <Users className="h-4 w-4" />,
       trend: isLoading ? "" : "Growing network",
     },
     {
       title: "Quality Rating",
-      value: isLoading ? "..." : `${stats.qualityRating.toFixed(1)}/5`,
+      value: isLoading ? "..." : `${currentStats.qualityRating.toFixed(1)}/5`,
       description: "Based on reputation",
       icon: <Star className="h-4 w-4" />,
-      trend: isLoading ? "" : stats.qualityRating >= 4 ? "Excellent" : stats.qualityRating >= 3 ? "Good" : "Improving",
+      trend: isLoading ? "" : currentStats.qualityRating >= 4 ? "Excellent" : currentStats.qualityRating >= 3 ? "Good" : "Improving",
     },
   ];
 
