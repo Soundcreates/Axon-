@@ -18,7 +18,7 @@ const setUser = (user) => {
         role: user.role || null,
         name: user.name || null,
         loginMethod: user.loginMethod || 'email'
-    }, secret, { expiresIn: "1h" });
+    }, secret || process.env.JWT_SECRET, { expiresIn: "1h" });
 };
 
 const getUser = (token) => {
