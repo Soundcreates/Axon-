@@ -18,7 +18,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { useContracts } from "@/context/ContractContext";
 import { useWallet } from "@/context/WalletContext";
-import { useToken } from "@/context/TokenContext";
 import { toast } from "sonner";
 import { TokenDebug } from "@/components/debug/TokenDebug";
 import { server } from "@/service/backendApi";
@@ -36,23 +35,31 @@ type User = {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const tokenContext = useToken();
-  const { account, status: walletStatus, setAccount } = useWallet();
+  const contracts = useContracts();
+  const { account, status: walletStatus } = useWallet();
 
   //states type shi
   const [tokenBalanceOf, setTokenBalance] = useState<number>(0);
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(true);
   const [hasTriedWelcomeTokens, setHasTriedWelcomeTokens] = useState<boolean>(false);
+  const [hasReceivedWelcomeTokens, setHasReceivedWelcomeTokens] = useState<boolean>(false);
 
-  // Destructure after null check
-  const { sendWelcomeTokens, tokenBalance, isLoading: tokenLoading } = tokenContext || {};
+  // Destructure from contracts context
+  const {
+    axonToken_balanceOf,
+    axonToken_giveWelcomeTokens,
+    isLoading: contractsLoading,
+    networkSupported,
+    axonTokenContract
+  } = contracts || {};
 
   useEffect(() => {
     const fetchTokenBalance = async () => {
       console.log('Fetching acc balance');
       console.log('Account:', account);
-      console.log('TokenBalance function available:', !!tokenBalance);
-      console.log('Token context loading:', tokenLoading);
+      console.log('TokenBalance function available:', !!axonToken_balanceOf);
+      console.log('Contracts loading:', contractsLoading);
+      console.log('Network supported:', networkSupported);
 
       if (!account) {
         console.log("No account available yet");
@@ -60,14 +67,14 @@ const Dashboard = () => {
         return;
       }
 
-      if (!tokenBalance) {
-        console.log("TokenBalance function not available yet");
+      if (!axonToken_balanceOf || !networkSupported) {
+        console.log("TokenBalance function not available yet or network not supported");
         return;
       }
 
       try {
         console.log("Account found, fetching token balance for:", account);
-        const balance = await tokenBalance(account);
+        const balance = await axonToken_balanceOf(account);
 
         // Convert BigInt to number properly (assuming 18 decimals)
         const balanceNumber = Number(balance) / (10 ** 18);
@@ -82,7 +89,24 @@ const Dashboard = () => {
     }
 
     fetchTokenBalance();
-  }, [account, tokenBalance, tokenLoading]);
+  }, [account, axonToken_balanceOf, contractsLoading, networkSupported]);
+
+  // Check if user has already received welcome tokens
+  useEffect(() => {
+    const checkWelcomeTokenStatus = async () => {
+      if (!axonTokenContract || !account || !networkSupported) return;
+
+      try {
+        const hasReceived = await (axonTokenContract as any).hasReceivedWelcomeTokens(account);
+        setHasReceivedWelcomeTokens(hasReceived);
+        console.log("Has received welcome tokens:", hasReceived);
+      } catch (error) {
+        console.error("Error checking welcome token status:", error);
+      }
+    };
+
+    checkWelcomeTokenStatus();
+  }, [axonTokenContract, account, networkSupported]);
 
   // Separate useEffect for welcome tokens (only run once)
   useEffect(() => {
@@ -92,12 +116,13 @@ const Dashboard = () => {
 
       }
 
-      if (!account || !sendWelcomeTokens || hasTriedWelcomeTokens || tokenLoading) {
+      if (!account || !axonToken_giveWelcomeTokens || hasTriedWelcomeTokens || contractsLoading || !networkSupported) {
         console.log("Conditions not met for welcome tokens:", {
           account: !!account,
-          sendWelcomeTokens: !!sendWelcomeTokens,
+          giveWelcomeTokens: !!axonToken_giveWelcomeTokens,
           hasTriedWelcomeTokens,
-          tokenLoading
+          contractsLoading,
+          networkSupported
         });
         return;
       }
@@ -105,15 +130,21 @@ const Dashboard = () => {
       setHasTriedWelcomeTokens(true);
 
       try {
-        await sendWelcomeTokens(account);
+        const tx = await axonToken_giveWelcomeTokens();
+        console.log("Welcome tokens transaction:", tx);
+
+        // Wait for transaction to be mined
+        const receipt = await tx.wait();
+        console.log("Welcome tokens transaction mined:", receipt);
+
         toast.success("Welcome tokens sent to your account!");
         console.log("Tokens sent successfully");
 
         // Refresh balance after successful token send
         setTimeout(async () => {
-          if (tokenBalance) {
+          if (axonToken_balanceOf) {
             try {
-              const balance = await tokenBalance(account);
+              const balance = await axonToken_balanceOf(account);
               const balanceNumber = Number(balance) / (10 ** 18);
               setTokenBalance(balanceNumber);
             } catch (error) {
@@ -133,10 +164,10 @@ const Dashboard = () => {
     }
 
     // Only run if wallet is connected and we haven't tried yet
-    if (walletStatus === 'connected' && account && sendWelcomeTokens && !hasTriedWelcomeTokens && !tokenLoading) {
+    if (walletStatus === 'connected' && account && axonToken_giveWelcomeTokens && !hasTriedWelcomeTokens && !contractsLoading && networkSupported) {
       handleWelcomeTokens();
     }
-  }, [account, sendWelcomeTokens, walletStatus, hasTriedWelcomeTokens, tokenLoading, tokenBalance]);
+  }, [account, axonToken_giveWelcomeTokens, walletStatus, hasTriedWelcomeTokens, contractsLoading, axonToken_balanceOf, networkSupported]);
 
   useEffect(() => {
     if (user) {
@@ -275,6 +306,108 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Token Status Section */}
+        {!networkSupported && (
+          <div className="mb-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-yellow-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-yellow-800 font-medium">Network Issue</p>
+                  <p className="text-yellow-700 text-sm">Please connect to Sepolia testnet to use token features</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {networkSupported && account && (
+          <div className="mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-blue-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-blue-800 font-medium">Wallet Connected</p>
+                    <p className="text-blue-700 text-sm">Account: {account.slice(0, 6)}...{account.slice(-4)}</p>
+                    <p className="text-blue-700 text-sm">Balance: {tokenBalanceOf.toFixed(2)} AXON tokens</p>
+                    <p className="text-blue-700 text-sm">
+                      Welcome tokens: {hasReceivedWelcomeTokens ? "✅ Received" : "❌ Not received"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (axonToken_balanceOf && account) {
+                        try {
+                          const balance = await axonToken_balanceOf(account);
+                          const balanceNumber = Number(balance) / (10 ** 18);
+                          setTokenBalance(balanceNumber);
+                          toast.success("Balance refreshed!");
+                        } catch (error) {
+                          console.error("Error refreshing balance:", error);
+                          toast.error("Failed to refresh balance");
+                        }
+                      }
+                    }}
+                    disabled={isLoadingBalance}
+                  >
+                    {isLoadingBalance ? "Loading..." : "Refresh"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (axonToken_giveWelcomeTokens && account) {
+                        try {
+                          const tx = await axonToken_giveWelcomeTokens();
+                          console.log("Manual welcome tokens transaction:", tx);
+
+                          const receipt = await tx.wait();
+                          console.log("Manual welcome tokens transaction mined:", receipt);
+
+                          toast.success("Welcome tokens claimed successfully!");
+
+                          // Update status
+                          setHasReceivedWelcomeTokens(true);
+
+                          // Refresh balance
+                          setTimeout(async () => {
+                            if (axonToken_balanceOf) {
+                              const balance = await axonToken_balanceOf(account);
+                              const balanceNumber = Number(balance) / (10 ** 18);
+                              setTokenBalance(balanceNumber);
+                            }
+                          }, 2000);
+                        } catch (error) {
+                          console.error("Error claiming welcome tokens:", error);
+                          if (error instanceof Error && error.message.includes('already received')) {
+                            toast.error("You have already received welcome tokens");
+                            setHasReceivedWelcomeTokens(true);
+                          } else {
+                            toast.error("Failed to claim welcome tokens");
+                          }
+                        }
+                      }
+                    }}
+                    disabled={contractsLoading || hasReceivedWelcomeTokens}
+                  >
+                    {contractsLoading ? "Loading..." : hasReceivedWelcomeTokens ? "Already Claimed" : "Claim Welcome Tokens"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Dashboard Stats */}
         <DashboardStats stats={dashboardStats} isLoading={isLoadingStats} />
