@@ -1,3 +1,5 @@
+[![wakatime](https://wakatime.com/badge/github/Soundcreates/Axon.svg)](https://wakatime.com/badge/github/Soundcreates/Axon)
+
 # 🧠 Axon: Decentralized Peer Review Platform
 
 A blockchain-powered peer review platform that revolutionizes academic manuscript review through decentralized consensus, token incentives, and AI-assisted review processes.
